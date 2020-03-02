@@ -8,11 +8,10 @@ import numpy as np
 
 N      = 32
 dt     = 1
-sigma  = 0.5
-
+sigma  = 2
 grid_size = 2 * np.pi / N
+actions = [2 * np.pi / N, -2 * np.pi / N]
 
-a = [2 * np.pi / N, -2 * np.pi / N]
 
 def reward(s):
     s *= grid_size
@@ -25,7 +24,7 @@ def policy(s):
         return 0
     else:
         return 1
-
+    
 
 def policy_vec(s):
     s *= grid_size
@@ -45,11 +44,11 @@ def snap_to_grid(s):
 
 
 def transition(s):
-    action = policy(s)
-    drift  = a[action]
+    a = policy(s)
+    drift  = actions[a]
     diffusion = np.random.randn() * sigma
     new_state = ( s * grid_size + (drift * dt) + (diffusion * np.sqrt(dt)) ) % (2 * np.pi) # keep s in [0, 2pi)
-    return snap_to_grid(new_state), action
+    return snap_to_grid(new_state), a
 
 
 def simulate_trajectory(T, s0=0):
@@ -63,7 +62,7 @@ def simulate_trajectory(T, s0=0):
     S[0] = s0
     A[0] = int(policy(s0))
     for t in range(T):
-        s, a = transition(S[t] * grid_size)
+        s, a = transition(S[t])
         S[t + 1] = s
         A[t + 1] = a
     return S, A
