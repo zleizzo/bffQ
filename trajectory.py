@@ -43,12 +43,11 @@ def snap_to_grid(s):
         return int(round((s - resid) / grid_size, 0)) % N
 
 
-def transition(s):
-    a = policy(s)
-    drift  = actions[a]
+def transition(s, a):
+    drift     = actions[a]
     diffusion = np.random.randn() * sigma
     new_state = ( s * grid_size + (drift * dt) + (diffusion * np.sqrt(dt)) ) % (2 * np.pi) # keep s in [0, 2pi)
-    return snap_to_grid(new_state), a
+    return snap_to_grid(new_state)
 
 
 def simulate_trajectory(T, s0=0):
@@ -62,7 +61,8 @@ def simulate_trajectory(T, s0=0):
     S[0] = s0
     A[0] = int(policy(s0))
     for t in range(T):
-        s, a = transition(S[t])
+        s = transition(S[t], A[t])
+        a = policy(s)
         S[t + 1] = s
         A[t + 1] = a
     return S, A
