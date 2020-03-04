@@ -11,7 +11,7 @@ g = 0.9
 
 def uncorr_stoch_grad(S, A, Q, M=1):
     T = len(S) - 1
-    batch = random.sample(range(T), M)
+    batch = np.random.choice(range(T), M)
     G = np.zeros(Q.shape)
     
     for t in batch:
