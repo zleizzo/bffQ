@@ -2,7 +2,6 @@
 Test stochastic gradient approximation
 """
 from trajectory import *
-from training import *
 from scipy.linalg import null_space
 import numpy as np
 import matplotlib.pyplot as plt
@@ -66,8 +65,70 @@ def simulate_discrete_trajectory(T, s0=0):
         A[t + 1] = a
     return S, A
 
+
 def full_grad(Q):
     return (g * bigP - np.eye(2 * N)) @ (np.diag(mu) @ (r + g * bigP.T @ Q - Q))
+
+    
+def discrete_uncorr_stoch_grad(S, A, Q, M=1):
+    T = len(S) - 1
+    batch = np.random.choice(range(T), M)
+    G = np.zeros(Q.shape)
+    
+#    cur_freq = np.zeros(2 * N)
+#    nxt_freq = np.zeros(2 * N)
+#    new_freq = np.zeros(2 * N)
+    for t in batch:
+        cur_s = int(S[t])
+        cur_a = int(A[t])
+        nxt_s = int(discrete_transition(cur_s, cur_a)[0])
+        nxt_a = int(policy(nxt_s))
+        new_s = int(discrete_transition(cur_s, cur_a)[0])
+        new_a = int(policy(new_s))
+        
+#        cur_freq[2 * cur_s + cur_a] += 1
+#        nxt_freq[2 * nxt_s + nxt_a] += 1
+#        new_freq[2 * new_s + new_a] += 1
+            
+        w1 = reward(cur_s) + g * Q[nxt_s, nxt_a] - Q[cur_s, cur_a]
+        w2 = reward(cur_s) + g * Q[new_s, new_a] - Q[cur_s, cur_a]
+            
+        G[cur_s, cur_a] -= 0.5 * w1
+        G[new_s, new_a] += 0.5 * g * w1
+        G[cur_s, cur_a] -= 0.5 * w2
+        G[nxt_s, nxt_a] += 0.5 * g * w2
+    
+    return G / M #, cur_freq / M, nxt_freq / M, new_freq / M
+
+
+def uncorr_stoch_grad2(Q, M=1):
+    G = np.zeros(Q.shape)
+    
+#    cur_freq = np.zeros(2 * N)
+#    nxt_freq = np.zeros(2 * N)
+#    new_freq = np.zeros(2 * N)
+    for k in range(M):
+        x = np.random.choice(range(2 * N), 1, p=mu)
+        cur_s = int(x / 2)
+        cur_a = int(x % 2)
+        nxt_s = int(discrete_transition(cur_s, cur_a)[0])
+        nxt_a = int(policy(nxt_s))
+        new_s = int(discrete_transition(cur_s, cur_a)[0])
+        new_a = int(policy(new_s))
+    
+#        cur_freq[2 * cur_s + cur_a] += 1
+#        nxt_freq[2 * nxt_s + nxt_a] += 1
+#        new_freq[2 * new_s + new_a] += 1
+    
+        w1 = reward(cur_s) + g * Q[nxt_s, nxt_a] - Q[cur_s, cur_a]
+        w2 = reward(cur_s) + g * Q[new_s, new_a] - Q[cur_s, cur_a]
+            
+        G[cur_s, cur_a] -= 0.5 * w1
+        G[new_s, new_a] += 0.5 * g * w1
+        G[cur_s, cur_a] -= 0.5 * w2
+        G[nxt_s, nxt_a] += 0.5 * g * w2
+    
+    return G / M #, cur_freq / M, nxt_freq / M, new_freq / M
 
 # BEGIN TESTS
 
@@ -98,54 +159,30 @@ def full_grad(Q):
 #plt.plot(range(64), trueQ)
 
 ## Stochastic gradient is unbiased when not drawn from fixed trajectory
-def uncorr_stoch_grad2(Q):
-    G = np.zeros(Q.shape)
-    x = np.random.choice(range(2 * N), 1, p=mu)
-    cur_s = int(x / 2)
-    cur_a = int(x % 2)
-    nxt_s = discrete_transition(cur_s, cur_a)[0]
-    nxt_a = int(policy(nxt_s))
-    new_s = discrete_transition(cur_s, cur_a)[0]
-    new_a = int(policy(new_s))
-        
-    w1 = reward(cur_s) + g * Q[nxt_s, nxt_a] - Q[cur_s, cur_a]
-    w2 = reward(cur_s) + g * Q[new_s, new_a] - Q[cur_s, cur_a]
-        
-    G[cur_s, cur_a] -= 0.5 * w1
-    G[new_s, new_a] += 0.5 * g * w1
-    G[cur_s, cur_a] -= 0.5 * w2
-    G[nxt_s, nxt_a] += 0.5 * g * w2
-    
-    return G
+#Q = np.zeros((N, 2))
+#G = np.zeros((N, 2))
+#M = 100000
+#G, cur_freq2, nxt_freq2, new_freq2 = uncorr_stoch_grad2(Q, M)
+#G = G.flatten()
+#grad = full_grad(Q.flatten())
+#print(np.linalg.norm(G))
+#print(np.linalg.norm(grad))
+#print(np.linalg.norm(G - grad))
 
-Q = np.zeros((N, 2))
-G = np.zeros((N, 2))
+# Stochastic gradient is unbiased when drawn from long enough fixed trajectory
+T = 5000000
+print('Generating trajectory...')
+S, A = simulate_discrete_trajectory(T)
+print('Finished generating trajectory.')
 M = 100000
-for k in range(M):
-    G += uncorr_stoch_grad2(Q)
-G /= M
+Q = np.zeros((N, 2))
+G, cur_freq, nxt_freq, new_freq = discrete_uncorr_stoch_grad(S, A, Q, M)
 G = G.flatten()
 grad = full_grad(Q.flatten())
 print(np.linalg.norm(G))
 print(np.linalg.norm(grad))
-print(np.linalg.norm(G - grad))
-
-T = 1000000
-print('Generating trajectory...')
-S, A = simulate_discrete_trajectory(T)
-print('Done generating trajectory.')
-freqs = np.zeros(2 * N)
-for t in range(len(S)):
-    freqs[int(2 * S[t] + A[t])] += 1
-freqs /= len(S)
-plt.plot(range(2 * N), mu)
-plt.plot(range(2 * N), freqs)
-
-G = uncorr_stoch_grad(S, A, Q, M)
-true_grad = full_grad(Q.flatten())
-print(np.linalg.norm(G.flatten()))
-print(np.linalg.norm(true_grad))
-print(np.linalg.norm(G.flatten() - true_grad))
+print(np.linalg.norm(G.flatten() - grad))
+plt.plot(range(64), nxt_freq)
 
 #Q = np.zeros((N, 2))
 #errors = np.zeros(num_iter)

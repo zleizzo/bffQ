@@ -50,6 +50,15 @@ def transition(s, a):
     return snap_to_grid(new_state)
 
 
+dist = [(N / 2) - abs(k - N / 2) for k in range(N)]
+p = np.array([2 ** (-d / sigma) for d in dist])
+p /= sum(p)
+def discrete_transition(s, a):
+    drift  = 1 - 2 * a
+    diffusion = np.random.choice(range(N), 1, p=p)
+    return (s + drift + diffusion) % N
+
+
 def simulate_trajectory(T, s0=0):
     """
     Simulate the trajectory for T steps starting from s0.
