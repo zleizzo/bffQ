@@ -14,7 +14,8 @@ actions = [2 * np.pi / N, -2 * np.pi / N]
 num_iter = 100000
 lr = 0.5
 T = 1000000
-M = 1000
+M = 100
+g = 0.9
 
 # For testing purposes, define dynamics so that we can explicitly calulate P
 dist = [(N / 2) - abs(k - N / 2) for k in range(N)]
@@ -59,6 +60,8 @@ def simulate_discrete_trajectory(T, s0=0):
     S[0] = s0
     A[0] = policy(s0)
     for t in range(T):
+        if t % 10000 == 0:
+            print(f't={t}')
         s = discrete_transition(S[t], A[t])[0]
         a = policy(s)
         S[t + 1] = s
@@ -162,44 +165,58 @@ def uncorr_stoch_grad2(Q, M=1):
 #Q = np.zeros((N, 2))
 #G = np.zeros((N, 2))
 #M = 100000
-#G, cur_freq2, nxt_freq2, new_freq2 = uncorr_stoch_grad2(Q, M)
+#G = uncorr_stoch_grad2(Q, M)
 #G = G.flatten()
 #grad = full_grad(Q.flatten())
 #print(np.linalg.norm(G))
 #print(np.linalg.norm(grad))
 #print(np.linalg.norm(G - grad))
 
-# Stochastic gradient is unbiased when drawn from long enough fixed trajectory
-T = 5000000
-print('Generating trajectory...')
-S, A = simulate_discrete_trajectory(T)
-print('Finished generating trajectory.')
-M = 100000
-Q = np.zeros((N, 2))
-G, cur_freq, nxt_freq, new_freq = discrete_uncorr_stoch_grad(S, A, Q, M)
-G = G.flatten()
-grad = full_grad(Q.flatten())
-print(np.linalg.norm(G))
-print(np.linalg.norm(grad))
-print(np.linalg.norm(G.flatten() - grad))
-plt.plot(range(64), nxt_freq)
-
+## Stochastic gradient is unbiased when drawn from long enough fixed trajectory
+#T = 5000000
+#print('Generating trajectory...')
+#S, A = simulate_discrete_trajectory(T)
+#print('Finished generating trajectory.')
+#M = 100000
 #Q = np.zeros((N, 2))
-#errors = np.zeros(num_iter)
-#start = time.time()
-#for k in range(num_iter):
-#    if k > 0 and k % 100 == 0:
-#        running = time.time() - start
-#        ETA = running * (num_iter - k) / k
-#        ETA /= 60
+#G = discrete_uncorr_stoch_grad(S, A, Q, M)
+#G = G.flatten()
+#grad = full_grad(Q.flatten())
+#print(np.linalg.norm(G))
+#print(np.linalg.norm(grad))
+#print(np.linalg.norm(G.flatten() - grad))
+
+Q = np.zeros((N, 2))
+T = 5000000
+M = 50
+num_iter = 50000
+#print('Generating trajectory...')
+now = time.time()
+S, A = simulate_discrete_trajectory(T)
+#print('Finished generating trajectory.')
+#print(f'Elapsed time: {time.time() - now}')
+errors = np.zeros(num_iter)
+start = time.time()
+for k in range(num_iter):
+    if k > 0 and k % 10 == 0:
+        running = time.time() - start
+        ETA = running * (num_iter - k) / k
+        ETA /= 60
 #        print(f'Running step {k}.')
 #        print(f'Estimated time until completion: {ETA} min')
-#    G = uncorr_stoch_grad(S, A, Q, M)
-#    Q -= lr * G
-#    errors[k] = np.linalg.norm(Q.flatten() - trueQ)
-#    if errors[k] < 0.01:
-#        errors = errors[:k + 1]
-#        break
-#conv = len(errors)
-#print(f'Converged in {conv} steps.')
-#plt.plot(range(len(errors)), errors)
+    G = uncorr_stoch_grad(S, A, Q, M)
+    Q -= lr * G
+    errors[k] = np.linalg.norm(Q.flatten() - trueQ)
+    if errors[k] < 0.01:
+        errors = errors[:k + 1]
+        break
+conv = len(errors)
+print(f'Converged in {conv} steps.')
+print(f'Final error: {errors[len(errors) - 1]}')
+print(f'(Norm of true Q is {np.linalg.norm(trueQ)})')
+plt.plot(range(len(errors)), errors)
+plt.savefig('unbiased_sgd.png')
+plt.figure()
+plt.plot(range(64), trueQ)
+plt.plot(range(64), Q.flatten())
+plt.savefig('learned_Q.png')
