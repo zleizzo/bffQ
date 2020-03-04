@@ -61,7 +61,7 @@ def simulate_discrete_trajectory(T, s0=0):
     A[0] = policy(s0)
     for t in range(T):
         if t % 10000 == 0:
-            print(f't={t}')
+#            print(f't={t}')
         s = discrete_transition(S[t], A[t])[0]
         a = policy(s)
         S[t + 1] = s
@@ -133,6 +133,35 @@ def uncorr_stoch_grad2(Q, M=1):
     
     return G / M #, cur_freq / M, nxt_freq / M, new_freq / M
 
+
+def marginalized_uncorr_stoch_grad(S, A, Q, M=1):
+    T = len(S) - 1
+    batch = np.random.choice(range(T), M)
+    G = np.zeros(Q.shape)
+    
+#    cur_freq = np.zeros(2 * N)
+#    nxt_freq = np.zeros(2 * N)
+#    new_freq = np.zeros(2 * N)
+    for t in batch:
+        cur_s = int(S[t])
+        cur_a = int(A[t])
+        nxt_s = int(discrete_transition(cur_s, cur_a)[0])
+        new_s = int(discrete_transition(cur_s, cur_a)[0])
+        
+        pi_nxt = policy_vec(nxt_s)
+        pi_new = policy_vec(new_s)
+            
+        w1 = reward(cur_s) + g * np.dot(Q[nxt_s, :], pi_nxt) - Q[cur_s, cur_a]
+        w2 = reward(cur_s) + g * np.dot(Q[new_s, :], pi_new) - Q[cur_s, cur_a]
+            
+        G[cur_s, cur_a] -= 0.5 * w1
+        G[cur_s, cur_a] -= 0.5 * w2
+        for a in range(len(actions)):
+            G[new_s, a] += 0.5 * pi_new[a] * g * w1
+            G[nxt_s, a] += 0.5 * pi_nxt[a] * g * w2
+    
+    return G / M 
+
 # BEGIN TESTS
 
 ## Empirical trajectory matches analytical results
@@ -185,9 +214,24 @@ def uncorr_stoch_grad2(Q, M=1):
 #print(np.linalg.norm(G))
 #print(np.linalg.norm(grad))
 #print(np.linalg.norm(G.flatten() - grad))
+    
+# Stochastic gradient marginalized over policy is also unbiased
+#T = 5000000
+#print('Generating trajectory...')
+#S, A = simulate_discrete_trajectory(T)
+#print('Finished generating trajectory.')
+#M = 100000
+#Q = np.zeros((N, 2))
+#G = marginalized_uncorr_stoch_grad(S, A, Q, M)
+#G = G.flatten()
+#grad = full_grad(Q.flatten())
+#print('Results for marginalized stochastic gradient:')
+#print(np.linalg.norm(G))
+#print(np.linalg.norm(grad))
+#print(np.linalg.norm(G.flatten() - grad))
 
 Q = np.zeros((N, 2))
-T = 5000000
+T = 500000
 M = 50
 num_iter = 50000
 #print('Generating trajectory...')
@@ -204,7 +248,7 @@ for k in range(num_iter):
         ETA /= 60
 #        print(f'Running step {k}.')
 #        print(f'Estimated time until completion: {ETA} min')
-    G = uncorr_stoch_grad(S, A, Q, M)
+    G = marginalized_uncorr_stoch_grad(S, A, Q, M)
     Q -= lr * G
     errors[k] = np.linalg.norm(Q.flatten() - trueQ)
     if errors[k] < 0.01:
