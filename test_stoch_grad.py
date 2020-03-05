@@ -61,7 +61,7 @@ def simulate_discrete_trajectory(T, s0=0):
     A[0] = policy(s0)
     for t in range(T):
         if t % 10000 == 0:
-#            print(f't={t}')
+            print(f't = {t}')
         s = discrete_transition(S[t], A[t])[0]
         a = policy(s)
         S[t + 1] = s
@@ -84,8 +84,8 @@ def discrete_uncorr_stoch_grad(S, A, Q, M=1):
     for t in batch:
         cur_s = int(S[t])
         cur_a = int(A[t])
-        nxt_s = int(discrete_transition(cur_s, cur_a)[0])
-        nxt_a = int(policy(nxt_s))
+        nxt_s = int(S[t + 1])
+        nxt_a = int(A[t + 1])
         new_s = int(discrete_transition(cur_s, cur_a)[0])
         new_a = int(policy(new_s))
         
@@ -145,7 +145,7 @@ def marginalized_uncorr_stoch_grad(S, A, Q, M=1):
     for t in batch:
         cur_s = int(S[t])
         cur_a = int(A[t])
-        nxt_s = int(discrete_transition(cur_s, cur_a)[0])
+        nxt_s = int(S[t + 1])
         new_s = int(discrete_transition(cur_s, cur_a)[0])
         
         pi_nxt = policy_vec(nxt_s)
@@ -162,6 +162,47 @@ def marginalized_uncorr_stoch_grad(S, A, Q, M=1):
     
     return G / M 
 
+def faster_SGD(S, A, Q_init = np.zeros((N, 2)), batch_size=1, epochs=1):
+    T = len(S) - 1
+    errors = np.zeros(epochs * int(T / batch_size))
+    start = time.time()
+    Q = Q_init
+    for epoch in range(epochs):
+        print(f'Running epoch {epoch}.')
+        if epoch > 0:
+            print(f'ETA: {((time.time() - start) * (epochs - epoch) / epoch) / 60} min')
+        t = 0
+        epoch_start = time.time()
+        for k in range(int(T / batch_size)):
+            if k % 1000 == 0 and k > 0:
+                print(f'ETA for this epoch: {round(((time.time() - epoch_start) * (int(T / batch_size) - k) / k) / 60, 2)} min')
+            # Compute stochastic gradient
+            G = np.zeros((N, 2))
+            for i in range(batch_size):
+                cur_s = int(S[t])
+                cur_a = int(A[t])
+                nxt_s = int(S[t + 1])
+                new_s = int(discrete_transition(cur_s, cur_a)[0])
+                
+                pi_nxt = policy_vec(nxt_s)
+                pi_new = policy_vec(new_s)
+                    
+                w1 = reward(cur_s) + g * np.dot(Q[nxt_s, :], pi_nxt) - Q[cur_s, cur_a]
+                w2 = reward(cur_s) + g * np.dot(Q[new_s, :], pi_new) - Q[cur_s, cur_a]
+                    
+                G[cur_s, cur_a] -= 0.5 * w1
+                G[cur_s, cur_a] -= 0.5 * w2
+                for a in range(len(actions)):
+                    G[new_s, a] += 0.5 * pi_new[a] * g * w1
+                    G[nxt_s, a] += 0.5 * pi_nxt[a] * g * w2
+                    
+                t += 1
+            # Update Q        
+            Q -= (lr / batch_size) * G
+            errors[epoch * int(T / batch_size) + k] = np.linalg.norm(Q.flatten() - trueQ)
+    
+    return Q, errors
+    
 # BEGIN TESTS
 
 ## Empirical trajectory matches analytical results
@@ -215,7 +256,7 @@ def marginalized_uncorr_stoch_grad(S, A, Q, M=1):
 #print(np.linalg.norm(grad))
 #print(np.linalg.norm(G.flatten() - grad))
     
-# Stochastic gradient marginalized over policy is also unbiased
+## Stochastic gradient marginalized over policy is also unbiased
 #T = 5000000
 #print('Generating trajectory...')
 #S, A = simulate_discrete_trajectory(T)
@@ -230,37 +271,41 @@ def marginalized_uncorr_stoch_grad(S, A, Q, M=1):
 #print(np.linalg.norm(grad))
 #print(np.linalg.norm(G.flatten() - grad))
 
-Q = np.zeros((N, 2))
-T = 500000
-M = 50
-num_iter = 50000
-#print('Generating trajectory...')
-now = time.time()
-S, A = simulate_discrete_trajectory(T)
-#print('Finished generating trajectory.')
-#print(f'Elapsed time: {time.time() - now}')
-errors = np.zeros(num_iter)
-start = time.time()
-for k in range(num_iter):
-    if k > 0 and k % 10 == 0:
-        running = time.time() - start
-        ETA = running * (num_iter - k) / k
-        ETA /= 60
-#        print(f'Running step {k}.')
-#        print(f'Estimated time until completion: {ETA} min')
-    G = marginalized_uncorr_stoch_grad(S, A, Q, M)
-    Q -= lr * G
-    errors[k] = np.linalg.norm(Q.flatten() - trueQ)
-    if errors[k] < 0.01:
-        errors = errors[:k + 1]
-        break
-conv = len(errors)
-print(f'Converged in {conv} steps.')
-print(f'Final error: {errors[len(errors) - 1]}')
-print(f'(Norm of true Q is {np.linalg.norm(trueQ)})')
-plt.plot(range(len(errors)), errors)
-plt.savefig('unbiased_sgd.png')
-plt.figure()
-plt.plot(range(64), trueQ)
-plt.plot(range(64), Q.flatten())
-plt.savefig('learned_Q.png')
+#Q = np.zeros((N, 2))
+#T = 500000
+#M = 50
+#num_iter = 50000
+##print('Generating trajectory...')
+#now = time.time()
+#S, A = simulate_discrete_trajectory(T)
+##print('Finished generating trajectory.')
+##print(f'Elapsed time: {time.time() - now}')
+#errors = np.zeros(num_iter)
+#start = time.time()
+#for k in range(num_iter):
+#    if k > 0 and k % 10 == 0:
+#        running = time.time() - start
+#        ETA = running * (num_iter - k) / k
+#        ETA /= 60
+##        print(f'Running step {k}.')
+##        print(f'Estimated time until completion: {ETA} min')
+#    G = marginalized_uncorr_stoch_grad(S, A, Q, M)
+#    Q -= lr * G
+#    errors[k] = np.linalg.norm(Q.flatten() - trueQ)
+#    if errors[k] < 0.01:
+#        errors = errors[:k + 1]
+#        break
+#conv = len(errors)
+#print(f'Converged in {conv} steps.')
+#print(f'Final error: {errors[len(errors) - 1]}')
+#print(f'(Norm of true Q is {np.linalg.norm(trueQ)})')
+#plt.plot(range(len(errors)), errors)
+#plt.savefig('unbiased_sgd.png')
+#plt.figure()
+#plt.plot(range(64), trueQ)
+#plt.plot(range(64), Q.flatten())
+#plt.savefig('learned_Q.png')
+
+
+# Test faster SGD (no sampling, just take points in order)
+Q, errors = faster_SGD(S, A, batch_size = 50, epochs = 3)
