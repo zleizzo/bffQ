@@ -211,14 +211,14 @@ def double_sampling(S, A, trueQ, Q_init = np.zeros((N, 2)), batch_size = 1, epoc
 # Run experiment
 ###############################################################################
 S_long, A_long = simulate_trajectory(3 * T)
-trueQ, _ = unbiased_SGD_2(S_long, A_long, batch_size = 10000, epochs = 2)
+Q_actual, _ = unbiased_SGD_2(S_long, A_long, batch_size = 150, epochs = 2)
 
 S, A = simulate_trajectory(T)
-Q_UB, errors_UB   = unbiased_SGD_2(S, A, trueQ = trueQ, batch_size = batch_size, epochs = epochs)
-Q_BFF, errors_BFF = BFFQ(S, A, trueQ, batch_size = batch_size, epochs = epochs)
-Q_DS, errors_DS   = double_sampling(S, A, trueQ, batch_size = batch_size, epochs = epochs)
+Q_UB, errors_UB   = unbiased_SGD_2(S, A, trueQ = Q_actual, batch_size = batch_size, epochs = epochs)
+Q_BFF, errors_BFF = BFFQ(S, A, Q_actual, batch_size = batch_size, epochs = epochs)
+Q_DS, errors_DS   = double_sampling(S, A, Q_actual, batch_size = batch_size, epochs = epochs)
 
-initial_error  = np.linalg.norm(np.zeros(N * 2) - trueQ.flatten())
+initial_error  = np.linalg.norm(np.zeros(N * 2) - Q_actual.flatten())
 rel_errors_UB  = [err / initial_error for err in errors_UB]
 rel_errors_BFF = [err / initial_error for err in errors_BFF]
 rel_errors_DS  = [err / initial_error for err in errors_DS]
@@ -239,7 +239,7 @@ plt.legend()
 plt.savefig('errors.png')
 
 plt.figure()
-plt.plot(range(2 * N), trueQ.flatten(), label='true')
+plt.plot(range(2 * N), Q_actual.flatten(), label='true')
 plt.plot(range(2 * N), Q_UB.flatten(), label='ub')
 plt.plot(range(2 * N), Q_BFF.flatten(), label='bff')
 plt.plot(range(2 * N), Q_DS.flatten(), label='ds')
