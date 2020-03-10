@@ -81,7 +81,8 @@ def unbiased_SGD_2(S, A, trueQ = None, Q_init = np.zeros((N, 2)), batch_size=1, 
     errors = np.zeros(epochs * int(T / batch_size))
     
     start = time.time()
-    Q = Q_init
+    Q = Q_init.copy()
+
     for epoch in range(epochs):
         print(f'Running epoch {epoch}.')
         if epoch > 0:
@@ -112,11 +113,10 @@ def unbiased_SGD_2(S, A, trueQ = None, Q_init = np.zeros((N, 2)), batch_size=1, 
                     G[nxt_s, a] += 0.5 * pi_nxt[a] * g * w2
                     
                 t += 1
-            # Update Q        
+            # Update Q
             Q -= (lr / batch_size) * G
             if trueQ is not None:
                 errors[epoch * int(T / batch_size) + k] = np.linalg.norm(Q.flatten() - trueQ.flatten())
-#                print(errors[epoch * int(T / batch_size) + k])
     
     return Q, errors
 
