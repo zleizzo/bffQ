@@ -1,8 +1,13 @@
+"""
+Same as discrete_test_1.py except reward is calculated at s_{t+1}.
+"""
+
 from scipy.linalg import null_space
 import numpy as np
 import matplotlib.pyplot as plt
 import time
 import random
+
 ###############################################################################
 # Define parameters
 ###############################################################################
@@ -63,12 +68,13 @@ for s in range(N):
 r = np.zeros(N * 2)
 for s in range(N):
     for a in range(2):
-        r[2 * s + a] = reward(s)
+        for t in range(N):
+            r[2 * s + a] += P[t, s, a] * reward(t)
 
 v = null_space(bigP - np.eye(2 * N))
 mu = v / sum(v)
 mu = mu.flatten()
-trueQ = np.linalg.solve(np.eye(N * 2) - g * bigP.T, r)
+Q_actual = np.linalg.solve(np.eye(N * 2) - g * bigP.T, r)
 
 
 ###############################################################################
@@ -121,8 +127,8 @@ def unbiased_SGD(S, A, Q_init = np.zeros((N, 2)), batch_size=1, epochs=1):
                 pi_nxt = policy_vec(nxt_s)
                 pi_new = policy_vec(new_s)
                     
-                w1 = reward(cur_s) + g * np.dot(Q[nxt_s, :], pi_nxt) - Q[cur_s, cur_a]
-                w2 = reward(cur_s) + g * np.dot(Q[new_s, :], pi_new) - Q[cur_s, cur_a]
+                w1 = reward(nxt_s) + g * np.dot(Q[nxt_s, :], pi_nxt) - Q[cur_s, cur_a]
+                w2 = reward(new_s) + g * np.dot(Q[new_s, :], pi_new) - Q[cur_s, cur_a]
                     
                 G[cur_s, cur_a] -= 0.5 * w1
                 G[cur_s, cur_a] -= 0.5 * w2
@@ -133,7 +139,7 @@ def unbiased_SGD(S, A, Q_init = np.zeros((N, 2)), batch_size=1, epochs=1):
                 t += 1
             # Update Q        
             Q -= (lr / batch_size) * G
-            errors[epoch * int(T / batch_size) + k] = np.linalg.norm(Q.flatten() - trueQ)
+            errors[epoch * int(T / batch_size) + k] = np.linalg.norm(Q.flatten() - Q_actual)
     
     return Q, errors
 
@@ -164,8 +170,8 @@ def BFFQ(S, A, Q_init = np.zeros((N, 2)), batch_size = 1, epochs = 1):
                 pi_nxt = policy_vec(nxt_s)
                 pi_new = policy_vec(new_s)
                     
-                w1 = reward(cur_s) + g * np.dot(Q[nxt_s, :], pi_nxt) - Q[cur_s, cur_a]
-                w2 = reward(cur_s) + g * np.dot(Q[new_s, :], pi_new) - Q[cur_s, cur_a]
+                w1 = reward(nxt_s) + g * np.dot(Q[nxt_s, :], pi_nxt) - Q[cur_s, cur_a]
+                w2 = reward(new_s) + g * np.dot(Q[new_s, :], pi_new) - Q[cur_s, cur_a]
                     
                 G[cur_s, cur_a] -= 0.5 * w1
                 G[cur_s, cur_a] -= 0.5 * w2
@@ -176,7 +182,7 @@ def BFFQ(S, A, Q_init = np.zeros((N, 2)), batch_size = 1, epochs = 1):
                 t += 1
             # Update Q        
             Q -= (lr / batch_size) * G
-            errors[epoch * int(T / batch_size) + k] = np.linalg.norm(Q.flatten() - trueQ)
+            errors[epoch * int(T / batch_size) + k] = np.linalg.norm(Q.flatten() - Q_actual)
     
     return Q, errors
 
@@ -207,8 +213,8 @@ def double_sampling(S, A, Q_init = np.zeros((N, 2)), batch_size = 1, epochs = 1)
                 pi_nxt = policy_vec(nxt_s)
                 pi_new = policy_vec(new_s)
                     
-                w1 = reward(cur_s) + g * np.dot(Q[nxt_s, :], pi_nxt) - Q[cur_s, cur_a]
-                w2 = reward(cur_s) + g * np.dot(Q[new_s, :], pi_new) - Q[cur_s, cur_a]
+                w1 = reward(nxt_s) + g * np.dot(Q[nxt_s, :], pi_nxt) - Q[cur_s, cur_a]
+                w2 = reward(new_s) + g * np.dot(Q[new_s, :], pi_new) - Q[cur_s, cur_a]
                     
                 G[cur_s, cur_a] -= 0.5 * w1
                 G[cur_s, cur_a] -= 0.5 * w2
@@ -219,10 +225,41 @@ def double_sampling(S, A, Q_init = np.zeros((N, 2)), batch_size = 1, epochs = 1)
                 t += 1
             # Update Q        
             Q -= (lr / batch_size) * G
-            errors[epoch * int(T / batch_size) + k] = np.linalg.norm(Q.flatten() - trueQ)
+            errors[epoch * int(T / batch_size) + k] = np.linalg.norm(Q.flatten() - Q_actual)
     
     return Q, errors
 
+
+def monte_carlo(s, a, tol = 0.001, reps = 1000):
+    
+    # T is defined so that the total reward incurred from time T to infinity is
+    # at most tol.
+    R_max = 2
+    T = int(np.log((1 - g) * tol / R_max) / np.log(g)) + 1
+    
+    total = 0
+    for r in range(reps):
+        s_cur = s
+        a_cur = a
+        discount = 1
+        for t in range(1, T):
+            s_cur = int(discrete_transition(s_cur, a_cur)[0])
+            total += reward(s_cur) * discount
+            a_cur = policy(s_cur)
+            discount *= g
+    empirical_avg = total / reps
+    return empirical_avg
+
+
+def monte_carlo_Q(tol = 0.001, reps = 1000):
+    
+    Q = np.zeros((N, 2))
+    for s in range(N):
+        for a in range(2):
+            print(f'Computing Q({s}, {a})...')
+            Q[s, a] = monte_carlo(s, a, tol, reps)
+    return Q
+            
 
 
 ###############################################################################
@@ -233,8 +270,9 @@ S, A = simulate_discrete_trajectory(T)
 Q_UB, errors_UB   = unbiased_SGD(S, A, batch_size = batch_size, epochs = epochs)
 Q_BFF, errors_BFF = BFFQ(S, A, batch_size = batch_size, epochs = epochs)
 Q_DS, errors_DS   = double_sampling(S, A, batch_size = batch_size, epochs = epochs)
+Q_MC              = monte_carlo_Q(tol = 0.001, reps = 10000)
 
-initial_error  = np.linalg.norm(np.zeros(N * 2) - trueQ.flatten())
+initial_error  = np.linalg.norm(np.zeros(N * 2) - Q_actual.flatten())
 rel_errors_UB  = [err / initial_error for err in errors_UB]
 rel_errors_BFF = [err / initial_error for err in errors_BFF]
 rel_errors_DS  = [err / initial_error for err in errors_DS]
@@ -252,13 +290,29 @@ plt.xlabel('Iteration')
 plt.ylabel('Relative error decay (log10 scale)')
 plt.title('Relative training error decay')
 plt.legend()
+plt.savefig('errors3.png')
 
+Q_actual = Q_actual.reshape((N, 2))
 plt.figure()
-plt.plot(range(2 * N), trueQ.flatten(), label='true')
-plt.plot(range(2 * N), Q_UB.flatten(), label='ub')
-plt.plot(range(2 * N), Q_BFF.flatten(), label='bff')
-plt.plot(range(2 * N), Q_DS.flatten(), label='ds')
+plt.subplot(1, 2, 1)
+plt.plot(range(N), Q_actual[:, 0], label='true')
+plt.plot(range(N), Q_UB[:, 0], label='ub')
+plt.plot(range(N), Q_BFF[:, 0], label='bff')
+plt.plot(range(N), Q_DS[:, 0], label='ds')
+plt.plot(range(N), Q_MC[:, 0], label='mc')
 plt.xlabel('(state, action) pair')
 plt.ylabel('Q value')
-plt.title('Learned Q function')
+plt.title('Learned Q function, action 0')
 plt.legend()
+
+plt.subplot(1, 2, 2)
+plt.plot(range(N), Q_actual[:, 1], label='true')
+plt.plot(range(N), Q_UB[:, 1], label='ub')
+plt.plot(range(N), Q_BFF[:, 1], label='bff')
+plt.plot(range(N), Q_DS[:, 1], label='ds')
+plt.plot(range(N), Q_MC[:, 1], label='mc')
+plt.xlabel('(state, action) pair')
+plt.ylabel('Q value')
+plt.title('Learned Q function, action 1')
+plt.legend()
+plt.savefig('learned_q3.png')
