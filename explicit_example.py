@@ -1,7 +1,3 @@
-"""
-Same as discrete_test_1.py except reward is calculated at s_{t+1}.
-"""
-
 from scipy.linalg import null_space
 import numpy as np
 import matplotlib.pyplot as plt
@@ -19,8 +15,10 @@ grid_size  = 2 * np.pi / N
 
 T          = 5000000
 lr         = 0.5
-epochs     = 2
+epochs     = 5
 batch_size = 50
+
+reps       = 1000
 
 random.seed(0)
 ###############################################################################
@@ -104,9 +102,10 @@ def simulate_discrete_trajectory(T, s0=0):
 
 def unbiased_SGD(S, A, Q_init = np.zeros((N, 2)), batch_size=1, epochs=1):
     T = len(S) - 1
-    errors = np.zeros(epochs * int(T / batch_size))
+    errors  = np.zeros(epochs * int(T / batch_size))
+    bellman = np.zeros(epochs * int(T / batch_size))
     start = time.time()
-    Q = Q_init
+    Q = Q_init.copy()
     for epoch in range(epochs):
         print(f'Running epoch {epoch}.')
         if epoch > 0:
@@ -139,17 +138,19 @@ def unbiased_SGD(S, A, Q_init = np.zeros((N, 2)), batch_size=1, epochs=1):
                 t += 1
             # Update Q        
             Q -= (lr / batch_size) * G
-            errors[epoch * int(T / batch_size) + k] = np.linalg.norm(Q.flatten() - Q_actual)
+            errors[epoch * int(T / batch_size) + k]  = np.linalg.norm(Q.flatten() - Q_actual.flatten())
+            bellman[epoch * int(T / batch_size) + k] = np.linalg.norm(r + (g * bigP.T - np.eye(2 * N)) @ Q.flatten())
     
-    return Q, errors
+    return Q, errors, bellman
 
 
 def BFFQ(S, A, Q_init = np.zeros((N, 2)), batch_size = 1, epochs = 1):
     
     T = len(S) - 3
-    errors = np.zeros(epochs * int(T / batch_size))
+    errors  = np.zeros(epochs * int(T / batch_size))
+    bellman = np.zeros(epochs * int(T / batch_size))
     start = time.time()
-    Q = Q_init
+    Q = Q_init.copy()
     for epoch in range(epochs):
         print(f'Running epoch {epoch}.')
         if epoch > 0:
@@ -182,17 +183,19 @@ def BFFQ(S, A, Q_init = np.zeros((N, 2)), batch_size = 1, epochs = 1):
                 t += 1
             # Update Q        
             Q -= (lr / batch_size) * G
-            errors[epoch * int(T / batch_size) + k] = np.linalg.norm(Q.flatten() - Q_actual)
-    
-    return Q, errors
+            errors[epoch * int(T / batch_size) + k]  = np.linalg.norm(Q.flatten() - Q_actual.flatten())
+            bellman[epoch * int(T / batch_size) + k] = np.linalg.norm(r + (g * bigP.T - np.eye(2 * N)) @ Q.flatten())
+            
+    return Q, errors, bellman
 
 
 def double_sampling(S, A, Q_init = np.zeros((N, 2)), batch_size = 1, epochs = 1):
     
     T = len(S)
-    errors = np.zeros(epochs * int(T / batch_size))
+    errors  = np.zeros(epochs * int(T / batch_size))
+    bellman = np.zeros(epochs * int(T / batch_size))
     start = time.time()
-    Q = Q_init
+    Q = Q_init.copy()
     for epoch in range(epochs):
         print(f'Running epoch {epoch}.')
         if epoch > 0:
@@ -225,9 +228,10 @@ def double_sampling(S, A, Q_init = np.zeros((N, 2)), batch_size = 1, epochs = 1)
                 t += 1
             # Update Q        
             Q -= (lr / batch_size) * G
-            errors[epoch * int(T / batch_size) + k] = np.linalg.norm(Q.flatten() - Q_actual)
-    
-    return Q, errors
+            errors[epoch * int(T / batch_size) + k]  = np.linalg.norm(Q.flatten() - Q_actual.flatten())
+            bellman[epoch * int(T / batch_size) + k] = np.linalg.norm(r + (g * bigP.T - np.eye(2 * N)) @ Q.flatten())
+            
+    return Q, errors, bellman
 
 
 def monte_carlo(s, a, tol = 0.001, reps = 1000):
@@ -267,10 +271,10 @@ def monte_carlo_Q(tol = 0.001, reps = 1000):
 ###############################################################################
 S, A = simulate_discrete_trajectory(T)
 
-Q_UB, errors_UB   = unbiased_SGD(S, A, batch_size = batch_size, epochs = epochs)
-Q_BFF, errors_BFF = BFFQ(S, A, batch_size = batch_size, epochs = epochs)
-Q_DS, errors_DS   = double_sampling(S, A, batch_size = batch_size, epochs = epochs)
-Q_MC              = monte_carlo_Q(tol = 0.001, reps = 10000)
+Q_UB, errors_UB, bellman_UB    = unbiased_SGD(S, A, batch_size = batch_size, epochs = epochs)
+Q_BFF, errors_BFF, bellman_BFF = BFFQ(S, A, batch_size = batch_size, epochs = epochs)
+Q_DS, errors_DS, bellman_DS    = double_sampling(S, A, batch_size = batch_size, epochs = epochs)
+Q_MC                           = monte_carlo_Q(tol = 0.001, reps = reps)
 
 initial_error  = np.linalg.norm(np.zeros(N * 2) - Q_actual.flatten())
 rel_errors_UB  = [err / initial_error for err in errors_UB]
@@ -283,36 +287,46 @@ log_errors_DS  = [np.log10(err) for err in rel_errors_DS]
 
 k = min([len(log_errors_UB), len(log_errors_BFF), len(log_errors_DS)])
 
-plt.plot(range(k), log_errors_UB[:k], label='ub')
-plt.plot(range(k), log_errors_BFF[:k], label='bff')
-plt.plot(range(k), log_errors_DS[:k], label='ds')
+plt.plot(range(k), log_errors_UB[:k], label='ub', color='b')
+plt.plot(range(k), log_errors_BFF[:k], label='bff', color='g')
+plt.plot(range(k), log_errors_DS[:k], label='ds', color='r')
 plt.xlabel('Iteration')
 plt.ylabel('Relative error decay (log10 scale)')
 plt.title('Relative training error decay')
 plt.legend()
-plt.savefig('errors3.png')
+plt.savefig('explicit_example_d2_errors.png')
+
+plt.figure()
+plt.plot(range(k), bellman_UB[:k], label='ub', color='b')
+plt.plot(range(k), bellman_BFF[:k], label='bff', color='g')
+plt.plot(range(k), bellman_DS[:k], label='ds', color='r')
+plt.xlabel('Iteration')
+plt.ylabel('Norm of Bellman residual')
+plt.title('Bellman residual decay')
+plt.legend()
+plt.savefig('explicit_example_d2_bellman.png')
 
 Q_actual = Q_actual.reshape((N, 2))
 plt.figure()
 plt.subplot(1, 2, 1)
-plt.plot(range(N), Q_actual[:, 0], label='true')
-plt.plot(range(N), Q_UB[:, 0], label='ub')
-plt.plot(range(N), Q_BFF[:, 0], label='bff')
-plt.plot(range(N), Q_DS[:, 0], label='ds')
-plt.plot(range(N), Q_MC[:, 0], label='mc')
+plt.plot(range(N), Q_actual[:, 0], label='true', color='c')
+plt.plot(range(N), Q_UB[:, 0], label='ub', color='b')
+plt.plot(range(N), Q_DS[:, 0], label='ds', color='r')
+plt.plot(range(N), Q_MC[:, 0], label='mc', color='y')
+plt.plot(range(N), Q_BFF[:, 0], label='bff', color='g')
 plt.xlabel('(state, action) pair')
 plt.ylabel('Q value')
 plt.title('Learned Q function, action 0')
 plt.legend()
 
 plt.subplot(1, 2, 2)
-plt.plot(range(N), Q_actual[:, 1], label='true')
-plt.plot(range(N), Q_UB[:, 1], label='ub')
-plt.plot(range(N), Q_BFF[:, 1], label='bff')
-plt.plot(range(N), Q_DS[:, 1], label='ds')
-plt.plot(range(N), Q_MC[:, 1], label='mc')
+plt.plot(range(N), Q_actual[:, 1], label='true', color='c')
+plt.plot(range(N), Q_UB[:, 1], label='ub', color='b')
+plt.plot(range(N), Q_BFF[:, 1], label='bff', color='g')
+plt.plot(range(N), Q_DS[:, 1], label='ds', color='r')
+plt.plot(range(N), Q_MC[:, 1], label='mc', color='y')
 plt.xlabel('(state, action) pair')
 plt.ylabel('Q value')
 plt.title('Learned Q function, action 1')
 plt.legend()
-plt.savefig('learned_q3.png')
+plt.savefig('explicit_example_d2_learned_q.png')
