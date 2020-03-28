@@ -15,7 +15,7 @@ grid_size  = 2 * np.pi / N
 
 T          = 5000000
 lr         = 0.5
-epochs     = 5
+epochs     = 1
 batch_size = 50
 
 reps       = 1000
@@ -294,7 +294,7 @@ plt.xlabel('Iteration')
 plt.ylabel('Relative error decay (log10 scale)')
 plt.title('Relative training error decay')
 plt.legend()
-plt.savefig('explicit_example_d2_errors.png')
+plt.savefig('explicit_example_d_errors.png')
 
 plt.figure()
 plt.plot(range(k), bellman_UB[:k], label='ub', color='b')
@@ -304,7 +304,7 @@ plt.xlabel('Iteration')
 plt.ylabel('Norm of Bellman residual')
 plt.title('Bellman residual decay')
 plt.legend()
-plt.savefig('explicit_example_d2_bellman.png')
+plt.savefig('explicit_example_d_bellman.png')
 
 Q_actual = Q_actual.reshape((N, 2))
 plt.figure()
@@ -329,4 +329,21 @@ plt.xlabel('(state, action) pair')
 plt.ylabel('Q value')
 plt.title('Learned Q function, action 1')
 plt.legend()
-plt.savefig('explicit_example_d2_learned_q.png')
+plt.savefig('explicit_example_d_learned_q.png')
+
+###############################################################################
+# Test distribution of s_{t+1} vs. s_t + (s_{t+2} - s_{t+1}) for each state
+###############################################################################
+# (i, j, 0)-th entry gives P(s_{t+1} = j | s_{t} = i)
+# (i, j, 1)-th entry gives P(s_t + s_{t+2} - s{t+1} = j | s_{t} = i)
+dist = np.zeros((N, N, 2))
+for t in range(len(S) - 2):
+    dist[int(S[t]), int(S[t + 1]), 0] += 1
+    dist[int(S[t]), int( S[t] + (S[t+2] - S[t+1]) ) % N, 1] += 1
+
+plt.figure()
+for i in range(N):
+    dist[i, :, :] /= sum(dist[i, :, 0])
+    plt.subplot(4, 8, i + 1)
+    plt.plot(range(N), dist[i, :, 0], color='r', label='ub')
+    plt.plot(range(N), dist[i, :, 1], color='b', label='bff')
