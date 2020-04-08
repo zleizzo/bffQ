@@ -103,12 +103,11 @@ def compute_grad_j(cur_s, cur_a, nxt_s, Q):
 #    return [w.grad for w in Q.parameters()]
 
 
-def UB(S, A, learning_rate, batch_size, epochs):
+def UB(S, A, learning_rate, batch_size, epochs, Q = Net()):
     T = len(S) - 1
 #    errors  = np.zeros(epochs * int(T / batch_size))
     
     start = time.time()
-    Q = Net()
 
     for epoch in range(epochs):
         print(f'Running epoch {epoch}.')
@@ -135,6 +134,37 @@ def UB(S, A, learning_rate, batch_size, epochs):
                 
             for w, grad in zip(Q.parameters(), grads):
                 w.data.sub_(learning_rate * grad)
+    
+    return Q
+
+
+def unif_UB(T, learning_rate, batch_size, Q = Net()):
+    
+    start = time.time()
+    print('Starting uniform UB SGD...')
+    for k in range(int(T / batch_size)):
+        if k % 100 == 0 and k > 0:
+            print(f'ETA: {round(((time.time() - start) * (int(T / batch_size) - k) / k) / 60, 2)} min')
+        grads = [torch.zeros(w.shape) for w in Q.parameters()]
+        for i in range(batch_size):
+            cur_s = np.random.rand() * 2 * np.pi
+            cur_a = np.random.randint(0, 2)
+            nxt_s = transition(cur_s, cur_a)
+            new_s = transition(cur_s, cur_a)
+            
+            j      = compute_j(cur_s, cur_a, nxt_s, Q)
+            grad_j = compute_grad_j(cur_s, cur_a, new_s, Q)
+#            print(f'j = {j}')
+#            print(f'norm grad = {torch.norm(grad_j[0])}')
+#            for grad in grad_j:
+#                if any(torch.isnan(grad).flatten()):
+#                    return [j, grad_j, Q, cur_s, cur_a, nxt_s, new_s]
+                
+            for l in range(len(grads)):
+                grads[l] += (j / batch_size) * grad_j[l]
+                
+        for w, grad in zip(Q.parameters(), grads):
+            w.data.sub_(learning_rate * grad)
     
     return Q
 
@@ -170,14 +200,15 @@ def MC(tol = 0.001, reps = 1000, divisions = 50):
     return Q
 
 
-T             = 1000000
-learning_rate = 0.1
+T             = 5000000
+learning_rate = 0.01
 batch_size    = 50
 epochs        = 4
 
 
-S, A = simulate_trajectory(T)
-Q_UB = UB(S, A, learning_rate, batch_size, epochs)
+#S, A = simulate_trajectory(T)
+#Q_UB = UB(S, A, learning_rate, batch_size, epochs)
+Q_UB = unif_UB(T, learning_rate, batch_size)
 Q_MC = MC()
 
 x = np.linspace(0, 2 * np.pi)
