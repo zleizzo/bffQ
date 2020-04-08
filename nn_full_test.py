@@ -234,7 +234,7 @@ def MC(tol = 0.001, reps = 1000, divisions = 50):
     return Q
 
 
-T             = 100000
+T             = 5000000
 learning_rate = 0.01
 batch_size    = 50
 epochs        = 4
