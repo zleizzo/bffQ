@@ -72,6 +72,19 @@ def simulate_trajectory(T = 1000000, s0 = 0):
     return S, A
 
 
+def L2_error(Q1graph, Q2graph):
+    """
+    Computes the L2 norm of Q1 - Q2 with n subdivisions of [0, 2pi).
+    Q2graph should be given as tensors to save computation time.
+    (Q2 will remain fixed during training.)
+    """
+    n = len(Q1graph)
+    with torch.no_grad():
+        norm = torch.norm(Q1graph[:n - 1] - Q2graph[:n - 1])
+        norm *= np.sqrt(2 * np.pi / (n - 1))
+    return norm.numpy()
+
+
 def compute_j(cur_s, cur_a, nxt_s, Q):
     pi    = policy_vec(nxt_s)
     rwd   = reward(nxt_s)
@@ -87,44 +100,13 @@ def compute_grad_j(cur_s, cur_a, nxt_s, Q):
     return [w.grad.data for w in Q.parameters()]
 
 
-def UB(S, A, learning_rate, batch_size, epochs, Q = Net()):
-    T = len(S) - 1
-#    errors  = np.zeros(epochs * int(T / batch_size))
+def unif_UB(T, learning_rate, batch_size, Q = Net(), trueQgraph = None):
     
     start = time.time()
-
-    for epoch in range(epochs):
-        print(f'Running epoch {epoch}.')
-        if epoch > 0:
-            print(f'ETA: {((time.time() - start) * (epochs - epoch) / epoch) / 60} min')
-        t = 0
-        epoch_start = time.time()
-        for k in range(int(T / batch_size)):
-            if k % 1000 == 0 and k > 0:
-                print(f'ETA for this epoch: {round(((time.time() - epoch_start) * (int(T / batch_size) - k) / k) / 60, 2)} min')
-            # Compute stochastic gradient
-            grads = [torch.zeros(w.shape) for w in Q.parameters()]
-            for i in range(batch_size):
-                cur_s = S[t]
-                cur_a = int(A[t])
-                nxt_s = S[t + 1]
-                new_s = transition(cur_s, cur_a)
-                
-                j      = compute_j(cur_s, cur_a, nxt_s, Q)
-                grad_j = compute_grad_j(cur_s, cur_a, new_s, Q)
-                
-                for l in range(len(grads)):
-                    grads[l] += (j / batch_size) * grad_j[l]
-                
-            for w, grad in zip(Q.parameters(), grads):
-                w.data.sub_(learning_rate * grad)
+    errors = np.zeros(int(T / batch_size))
+    x = np.linspace(0, 2 * np.pi)
+    z = torch.stack([map_to_input(s) for s in x])
     
-    return Q
-
-
-def unif_UB(T, learning_rate, batch_size, Q = Net()):
-    
-    start = time.time()
     print('Starting uniform UB SGD...')
     for k in range(int(T / batch_size)):
         if k % 100 == 0 and k > 0:
@@ -144,13 +126,22 @@ def unif_UB(T, learning_rate, batch_size, Q = Net()):
                 
         for w, grad in zip(Q.parameters(), grads):
             w.data.sub_(learning_rate * grad)
+            
+        if trueQgraph is not None:
+            with torch.no_grad():
+                Qgraph = Q(z)
+                errors[k] = L2_error(Qgraph, trueQgraph)
     
-    return Q
+    return Q, errors
 
 
-def unif_DS(T, learning_rate, batch_size, Q = Net()):
+def unif_DS(T, learning_rate, batch_size, Q = Net(), trueQgraph = None):
     
     start = time.time()
+    errors = np.zeros(int(T / batch_size))
+    x = np.linspace(0, 2 * np.pi)
+    z = torch.stack([map_to_input(s) for s in x])
+    
     print('Starting uniform DS SGD...')
     for k in range(int(T / batch_size)):
         if k % 100 == 0 and k > 0:
@@ -170,13 +161,22 @@ def unif_DS(T, learning_rate, batch_size, Q = Net()):
                 
         for w, grad in zip(Q.parameters(), grads):
             w.data.sub_(learning_rate * grad)
+        
+        if trueQgraph is not None:
+            with torch.no_grad():
+                Qgraph = Q(z)
+                errors[k] = L2_error(Qgraph, trueQgraph)
     
-    return Q
+    return Q, errors
 
 
-def unif_BFF(T, learning_rate, batch_size, Q = Net()):
+def unif_BFF(T, learning_rate, batch_size, Q = Net(), trueQgraph = None):
     
     start = time.time()
+    errors = np.zeros(int(T / batch_size))
+    x = np.linspace(0, 2 * np.pi)
+    z = torch.stack([map_to_input(s) for s in x])
+    
     print('Starting uniform UB SGD...')
     for k in range(int(T / batch_size)):
         if k % 100 == 0 and k > 0:
@@ -199,8 +199,13 @@ def unif_BFF(T, learning_rate, batch_size, Q = Net()):
                 
         for w, grad in zip(Q.parameters(), grads):
             w.data.sub_(learning_rate * grad)
+            
+        if trueQgraph is not None:
+            with torch.no_grad():
+                Qgraph = Q(z)
+                errors[k] = L2_error(Qgraph, trueQgraph)
     
-    return Q
+    return Q, errors
 
 
 def monte_carlo(s, a, tol = 0.001, reps = 1000):
@@ -234,19 +239,21 @@ def MC(tol = 0.001, reps = 1000, divisions = 50):
     return Q
 
 
-T             = 5000000
+T             = 50000
 learning_rate = 0.01
 batch_size    = 50
 epochs        = 4
 
-
-Q_UB  = unif_UB(T, learning_rate, batch_size, Net())
-Q_DS  = unif_DS(T, learning_rate, batch_size, Net())
-Q_BFF = unif_BFF(T, learning_rate, batch_size, Net())
-Q_MC  = MC()
-
+trueQ, _     = unif_UB(T, learning_rate, batch_size, Net())
 x = np.linspace(0, 2 * np.pi)
 z = torch.stack([map_to_input(s) for s in x])
+trueQgraph = trueQ(z).detach()
+
+Q_UB,  e_UB  = unif_UB(T, learning_rate, batch_size, Net(), trueQgraph)
+Q_DS,  e_DS  = unif_DS(T, learning_rate, batch_size, Net(), trueQgraph)
+Q_BFF, e_BFF = unif_BFF(T, learning_rate, batch_size, Net(), trueQgraph)
+Q_MC         = MC()
+
 mc  = Q_MC
 ub  = Q_UB(z).detach()
 ds  = Q_DS(z).detach()
@@ -268,5 +275,24 @@ plt.plot(x, ds[:, 1], label='ds', color='r')
 plt.plot(x, bff[:, 1], label='bff', color='g')
 plt.title('Q, action 1')
 plt.legend()
+plt.savefig('nn_q_test.png')
 
-plt.savefig('all_methods_nn.png')
+
+
+rel_e_UB  = [err / e_UB[0]  for err in e_UB]
+rel_e_DS  = [err / e_DS[0]  for err in e_DS]
+rel_e_BFF = [err / e_BFF[0] for err in e_BFF]
+
+log_e_UB  = [np.log10(err) for err in rel_e_UB]
+log_e_DS  = [np.log10(err) for err in rel_e_DS]
+log_e_BFF = [np.log10(err) for err in rel_e_BFF]
+
+plt.figure()
+plt.plot(log_e_UB,  label='ub',  color='b')
+plt.plot(log_e_DS,  label='ds',  color='r')
+plt.plot(log_e_BFF, label='bff', color='g')
+plt.xlabel('Iteration')
+plt.ylabel('Relative error decay (log10 scale)')
+plt.title('Relative training error decay, uniform (s, a) sampling')
+plt.legend()
+plt.savefig('nn_error_test.png')
