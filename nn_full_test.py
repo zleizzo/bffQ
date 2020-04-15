@@ -239,12 +239,12 @@ def MC(tol = 0.001, reps = 1000, divisions = 50):
     return Q
 
 
-T             = 50000
+T             = 1000000
 learning_rate = 0.01
 batch_size    = 50
 epochs        = 4
 
-trueQ, _     = unif_UB(T, learning_rate, batch_size, Net())
+trueQ, _     = unif_UB(5 * T, learning_rate, batch_size, Net())
 x = np.linspace(0, 2 * np.pi)
 z = torch.stack([map_to_input(s) for s in x])
 trueQgraph = trueQ(z).detach()
@@ -275,7 +275,7 @@ plt.plot(x, ds[:, 1], label='ds', color='r')
 plt.plot(x, bff[:, 1], label='bff', color='g')
 plt.title('Q, action 1')
 plt.legend()
-plt.savefig('nn_q_test.png')
+plt.savefig('nn_q.png')
 
 
 
@@ -295,4 +295,4 @@ plt.xlabel('Iteration')
 plt.ylabel('Relative error decay (log10 scale)')
 plt.title('Relative training error decay, uniform (s, a) sampling')
 plt.legend()
-plt.savefig('nn_error_test.png')
+plt.savefig('nn_error.png')
