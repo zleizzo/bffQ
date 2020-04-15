@@ -239,6 +239,8 @@ def MC(tol = 0.001, reps = 1000, divisions = 50):
     return Q
 
 
+random.seed(0)
+
 T             = 1000000
 learning_rate = 0.01
 batch_size    = 50
