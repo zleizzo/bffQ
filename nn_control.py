@@ -250,7 +250,7 @@ def MC(trueQ, e = 0.1, tol = 0.001, reps = 1000, divisions = 50):
 random.seed(0)
 
 T             = 1000000
-learning_rate = 0.1
+learning_rate = 0.01
 batch_size    = 50
 e             = 0.1
 
@@ -273,18 +273,18 @@ true = trueQ(z).detach()
 
 plt.figure()
 plt.subplot(1,2,1)
-plt.plot(x, true[:, 0], label='true', color='b')
+plt.plot(x, true[:, 0], label='true', color='m')
 #plt.plot(x, mc[:, 0], label='mc', color='c')
-plt.plot(x, ub[:, 0], label='ub', color='m')
+plt.plot(x, ub[:, 0], label='ub', color='b')
 plt.plot(x, ds[:, 0], label='ds', color='r')
 plt.plot(x, bff[:, 0], label='bff', color='g')
 plt.title('Q, action 0')
 plt.legend()
 
 plt.subplot(1,2,2)
-plt.plot(x, true[:, 1], label='true', color='b')
+plt.plot(x, true[:, 1], label='true', color='m')
 #plt.plot(x, mc[:, 1], label='mc', color='c')
-plt.plot(x, ub[:, 1], label='ub', color='m')
+plt.plot(x, ub[:, 1], label='ub', color='b')
 plt.plot(x, ds[:, 1], label='ds', color='r')
 plt.plot(x, bff[:, 1], label='bff', color='g')
 plt.title('Q, action 1')
@@ -307,6 +307,6 @@ plt.plot(log_e_DS,  label='ds',  color='r')
 plt.plot(log_e_BFF, label='bff', color='g')
 plt.xlabel('Iteration')
 plt.ylabel('Relative error decay (log10 scale)')
-plt.title('Relative training error decay, uniform (s, a) sampling')
+plt.title('Relative training error decay')
 plt.legend()
 plt.savefig('nn_error_control.png')
