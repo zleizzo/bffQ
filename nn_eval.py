@@ -92,7 +92,6 @@ def UB(T, learning_rate, batch_size, Q = Net(), trueQgraph = None):
     z = torch.stack([map_to_input(s) for s in x])
     
     print('Starting uniform UB SGD...')
-    # Starting state selected randomly
     nxt_s = np.random.rand() * 2 * np.pi
     for k in range(int(T / batch_size)):
         if k % 100 == 0 and k > 0:
@@ -128,7 +127,7 @@ def DS(T, learning_rate, batch_size, Q = Net(), trueQgraph = None):
     x = np.linspace(0, 2 * np.pi)
     z = torch.stack([map_to_input(s) for s in x])
     
-    print('Starting uniform DS SGD...')
+    print('Starting DS SGD...')
     nxt_s = np.random.rand() * 2 * np.pi
     for k in range(int(T / batch_size)):
         if k % 100 == 0 and k > 0:
@@ -164,20 +163,28 @@ def BFF(T, learning_rate, batch_size, Q = Net(), trueQgraph = None):
     x = np.linspace(0, 2 * np.pi)
     z = torch.stack([map_to_input(s) for s in x])
     
-    print('Starting uniform UB SGD...')
-    nxt_s = np.random.rand() * 2 * np.pi
+    print('Starting BFF SGD...')
+    cur_s = np.random.rand() * 2 * np.pi
+    cur_a = policy(cur_s)
+    
+    nxt_s = transition(cur_s, cur_a)
+    nxt_a = policy(nxt_s)
+    
+    ftr_s = transition(nxt_s, nxt_a)
     for k in range(int(T / batch_size)):
         if k % 100 == 0 and k > 0:
             print(f'ETA: {round(((time.time() - start) * (int(T / batch_size) - k) / k) / 60, 2)} min')
         grads = [torch.zeros(w.shape) for w in Q.parameters()]
         for i in range(batch_size):
             cur_s = nxt_s
-            cur_a = policy(cur_s)
+            cur_a = nxt_a
             
-            nxt_s = transition(cur_s, cur_a)
+            nxt_s = ftr_s
             nxt_a = policy(nxt_s)
             
-            new_s = cur_s + (transition(nxt_s, nxt_a) - nxt_s)            
+            ftr_s = transition(nxt_s, nxt_a)
+            
+            new_s = cur_s + (ftr_s - nxt_s)
             
             j      = compute_j(cur_s, cur_a, nxt_s, Q)
             grad_j = compute_grad_j(cur_s, cur_a, new_s, Q)
@@ -260,6 +267,7 @@ plt.title('Q, action 0')
 plt.legend()
 
 plt.subplot(1,2,2)
+plt.plot(x, true[:, 1], label='true', color='b')
 #plt.plot(x, mc[:, 1], label='mc', color='c')
 plt.plot(x, ub[:, 1], label='ub', color='m')
 plt.plot(x, ds[:, 1], label='ds', color='r')

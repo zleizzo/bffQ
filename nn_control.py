@@ -97,21 +97,22 @@ def compute_grad_j(cur_s, cur_a, nxt_s, Q, e = 0.1):
     return [w.grad.data for w in Q.parameters()]
 
 
-def unif_UB(T, learning_rate, batch_size, e = 0.1, Q = Net(), trueQgraph = None):
+def UB(T, learning_rate, batch_size, e = 0.1, Q = Net(), trueQgraph = None):
     
     start = time.time()
     errors = np.zeros(int(T / batch_size))
     x = np.linspace(0, 2 * np.pi)
     z = torch.stack([map_to_input(s) for s in x])
     
-    print('Starting uniform UB SGD...')
+    print('Starting UB SGD...')
+    nxt_s = np.random.rand() * 2 * np.pi
     for k in range(int(T / batch_size)):
         if k % 100 == 0 and k > 0:
             print(f'ETA: {round(((time.time() - start) * (int(T / batch_size) - k) / k) / 60, 2)} min')
         grads = [torch.zeros(w.shape) for w in Q.parameters()]
         for i in range(batch_size):
-            cur_s = np.random.rand() * 2 * np.pi
-            cur_a = np.random.randint(0, 2)
+            cur_s = nxt_s
+            cur_a = policy(cur_s)
             nxt_s = transition(cur_s, cur_a)
             new_s = transition(cur_s, cur_a)
             
@@ -132,21 +133,22 @@ def unif_UB(T, learning_rate, batch_size, e = 0.1, Q = Net(), trueQgraph = None)
     return Q, errors
 
 
-def unif_DS(T, learning_rate, batch_size, e = 0.1, Q = Net(), trueQgraph = None):
+def DS(T, learning_rate, batch_size, e = 0.1, Q = Net(), trueQgraph = None):
     
     start = time.time()
     errors = np.zeros(int(T / batch_size))
     x = np.linspace(0, 2 * np.pi)
     z = torch.stack([map_to_input(s) for s in x])
     
-    print('Starting uniform DS SGD...')
+    print('Starting DS SGD...')
+    nxt_s = np.random.rand() * 2 * np.pi
     for k in range(int(T / batch_size)):
         if k % 100 == 0 and k > 0:
             print(f'ETA: {round(((time.time() - start) * (int(T / batch_size) - k) / k) / 60, 2)} min')
         grads = [torch.zeros(w.shape) for w in Q.parameters()]
         for i in range(batch_size):
-            cur_s = np.random.rand() * 2 * np.pi
-            cur_a = np.random.randint(0, 2)
+            cur_s = nxt_s
+            cur_a = policy(cur_s)
             nxt_s = transition(cur_s, cur_a)
             new_s = nxt_s
             
@@ -167,26 +169,35 @@ def unif_DS(T, learning_rate, batch_size, e = 0.1, Q = Net(), trueQgraph = None)
     return Q, errors
 
 
-def unif_BFF(T, learning_rate, batch_size, e = 0.1, Q = Net(), trueQgraph = None):
+def BFF(T, learning_rate, batch_size, e = 0.1, Q = Net(), trueQgraph = None):
     
     start = time.time()
     errors = np.zeros(int(T / batch_size))
     x = np.linspace(0, 2 * np.pi)
     z = torch.stack([map_to_input(s) for s in x])
     
-    print('Starting uniform UB SGD...')
+    print('Starting BFF SGD...')
+    cur_s = np.random.rand() * 2 * np.pi
+    cur_a = policy(cur_s)
+    
+    nxt_s = transition(cur_s, cur_a)
+    nxt_a = policy(nxt_s)
+    
+    ftr_s = transition(nxt_s, nxt_a)
     for k in range(int(T / batch_size)):
         if k % 100 == 0 and k > 0:
             print(f'ETA: {round(((time.time() - start) * (int(T / batch_size) - k) / k) / 60, 2)} min')
         grads = [torch.zeros(w.shape) for w in Q.parameters()]
         for i in range(batch_size):
-            cur_s = np.random.rand() * 2 * np.pi
-            cur_a = np.random.randint(0, 2)
+            cur_s = nxt_s
+            cur_a = nxt_a
             
-            nxt_s = transition(cur_s, cur_a)
+            nxt_s = ftr_s
             nxt_a = policy(nxt_s)
             
-            new_s = cur_s + (transition(nxt_s, nxt_a) - nxt_s)            
+            ftr_s = transition(nxt_s, nxt_a)
+            
+            new_s = cur_s + (ftr_s - nxt_s)
             
             j      = compute_j(cur_s, cur_a, nxt_s, Q, e)
             grad_j = compute_grad_j(cur_s, cur_a, new_s, Q, e)
@@ -241,21 +252,20 @@ random.seed(0)
 T             = 1000000
 learning_rate = 0.1
 batch_size    = 50
-epochs        = 4
 e             = 0.1
 
-trueQ, _      = unif_UB(5 * T, learning_rate, batch_size, e, Net())
+trueQ, _      = UB(5 * T, learning_rate, batch_size, e, Net())
 
 x = np.linspace(0, 2 * np.pi)
 z = torch.stack([map_to_input(s) for s in x])
 trueQgraph = trueQ(z).detach()
 
-Q_UB,  e_UB  = unif_UB(T, learning_rate, batch_size, e, Net(), trueQgraph)
-Q_DS,  e_DS  = unif_DS(T, learning_rate, batch_size, e, Net(), trueQgraph)
-Q_BFF, e_BFF = unif_BFF(T, learning_rate, batch_size, e, Net(), trueQgraph)
-Q_MC         = MC(trueQ, e)
+Q_UB,  e_UB  = UB(T, learning_rate, batch_size, e, Net(), trueQgraph)
+Q_DS,  e_DS  = DS(T, learning_rate, batch_size, e, Net(), trueQgraph)
+Q_BFF, e_BFF = BFF(T, learning_rate, batch_size, e, Net(), trueQgraph)
+#Q_MC         = MC(trueQ, e)
 
-mc  = Q_MC
+#mc  = Q_MC
 ub  = Q_UB(z).detach()
 ds  = Q_DS(z).detach()
 bff = Q_BFF(z).detach()
@@ -264,7 +274,7 @@ true = trueQ(z).detach()
 plt.figure()
 plt.subplot(1,2,1)
 plt.plot(x, true[:, 0], label='true', color='b')
-plt.plot(x, mc[:, 0], label='mc', color='c')
+#plt.plot(x, mc[:, 0], label='mc', color='c')
 plt.plot(x, ub[:, 0], label='ub', color='m')
 plt.plot(x, ds[:, 0], label='ds', color='r')
 plt.plot(x, bff[:, 0], label='bff', color='g')
@@ -273,13 +283,13 @@ plt.legend()
 
 plt.subplot(1,2,2)
 plt.plot(x, true[:, 1], label='true', color='b')
-plt.plot(x, mc[:, 1], label='mc', color='c')
+#plt.plot(x, mc[:, 1], label='mc', color='c')
 plt.plot(x, ub[:, 1], label='ub', color='m')
 plt.plot(x, ds[:, 1], label='ds', color='r')
 plt.plot(x, bff[:, 1], label='bff', color='g')
 plt.title('Q, action 1')
 plt.legend()
-plt.savefig('control_q.png')
+plt.savefig('nn_q_control.png')
 
 
 
@@ -299,4 +309,4 @@ plt.xlabel('Iteration')
 plt.ylabel('Relative error decay (log10 scale)')
 plt.title('Relative training error decay, uniform (s, a) sampling')
 plt.legend()
-plt.savefig('control_error.png')
+plt.savefig('nn_error_control.png')
