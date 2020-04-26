@@ -1,11 +1,6 @@
-"""
-Section 6.2 of BFFQ
-"""
-from scipy.linalg import null_space
 import numpy as np
 import matplotlib.pyplot as plt
 import time
-import random
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -44,16 +39,6 @@ def reward(s):
 def map_to_input(s):
     return torch.tensor([np.cos(s), np.sin(s)])
 
-
-def policy_vec(s):
-    return np.array([0.5 + np.sin(s) / 5, 0.5 - np.sin(s) / 5])
-
-
-def policy(s):
-    if np.random.rand() <= 0.5 + np.sin(s) / 5:
-        return 0
-    else:
-        return 1
 
 def e_greedy(choices, e):
     """
@@ -111,7 +96,7 @@ def UB(T, learning_rate, batch_size, e = 0.1, Q = Net(), trueQgraph = None):
         grads = [torch.zeros(w.shape) for w in Q.parameters()]
         for i in range(batch_size):
             cur_s = nxt_s
-            cur_a = e_greedy(Q(cur_s), e)
+            cur_a = e_greedy(Q(map_to_input(cur_s)), e)
             nxt_s = transition(cur_s, cur_a)
             new_s = transition(cur_s, cur_a)
             
@@ -147,7 +132,7 @@ def DS(T, learning_rate, batch_size, e = 0.1, Q = Net(), trueQgraph = None):
         grads = [torch.zeros(w.shape) for w in Q.parameters()]
         for i in range(batch_size):
             cur_s = nxt_s
-            cur_a = e_greedy(Q(cur_s), e)
+            cur_a = e_greedy(Q(map_to_input(cur_s)), e)
             nxt_s = transition(cur_s, cur_a)
             new_s = nxt_s
             
@@ -177,10 +162,10 @@ def BFF(T, learning_rate, batch_size, e = 0.1, Q = Net(), trueQgraph = None):
     
     print('Starting BFF SGD...')
     cur_s = np.random.rand() * 2 * np.pi
-    cur_a = e_greedy(cur_s, e)
+    cur_a = e_greedy(Q(map_to_input(cur_s)), e)
     
     nxt_s = transition(cur_s, cur_a)
-    nxt_a = e_greedy(nxt_s, e)
+    nxt_a = e_greedy(Q(map_to_input(nxt_s)), e)
     
     ftr_s = transition(nxt_s, nxt_a)
     for k in range(int(T / batch_size)):
@@ -192,7 +177,7 @@ def BFF(T, learning_rate, batch_size, e = 0.1, Q = Net(), trueQgraph = None):
             cur_a = nxt_a
             
             nxt_s = ftr_s
-            nxt_a = e_greedy(nxt_s, e)
+            nxt_a = e_greedy(Q(map_to_input(nxt_s)), e)
             
             ftr_s = transition(nxt_s, nxt_a)
             
@@ -215,9 +200,9 @@ def BFF(T, learning_rate, batch_size, e = 0.1, Q = Net(), trueQgraph = None):
     return Q, errors
 
 
-random.seed(0)
+np.random.seed(0)
 
-T             = 1000000
+T             = 1000
 learning_rate = 0.01
 batch_size    = 50
 e             = 0.1
@@ -253,7 +238,7 @@ plt.plot(x, ds[:, 1], label='ds', color='r')
 plt.plot(x, bff[:, 1], label='bff', color='g')
 plt.title('Q, action 1')
 plt.legend()
-plt.savefig('plots/nn_q_control.png')
+plt.savefig('plots/nn_q_control_test.png')
 
 
 rel_e_UB  = [err / e_UB[0]  for err in e_UB]
@@ -272,4 +257,4 @@ plt.xlabel('Iteration')
 plt.ylabel('Relative error decay (log10 scale)')
 plt.title('Relative training error decay')
 plt.legend()
-plt.savefig('plots/nn_error_control.png')
+plt.savefig('plots/nn_error_control_test.png')
