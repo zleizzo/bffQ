@@ -48,6 +48,7 @@ def transition(s, a):
     Refer to Section 4.2 in the paper. a = 0 in the code corresponds to a = -1
     in the paper, while a = 1 is the same in the code and the paper.
     """
+    a = 2 * a - 1 # Map {0, 1} input to {-1, 1}
     delta_s = a * epsilon + sigma * np.random.normal() * sqrt_eps
     return (s + delta_s) % (2 * np.pi)
 
@@ -76,12 +77,12 @@ def e_greedy(choices, e):
     Output: argmax(choices) w.p. 1-e; uniform from among other indices (excluding
             the argmax index) w.p. e.
     """
-    argmax = torch.argmax(choices)
-    if np.random.rand() <= e:
+    argmax = torch.argmax(choices) # Returns the index of the maximum value in choices
+    if np.random.rand() <= e: # np.random.rand() returns a Unif[0, 1] sample.
         while True:
-            i = np.random.randint(0, len(choices))
-            if i != argmax: # This if statement means we choose uniformly from all indices except the argmax
-                return i    # (Since Q(s) in R^2, there is only one other choice)
+            i = np.random.randint(0, len(choices)) # np.random.randint(a, b) returns a uniform random integer in [a, b)
+            if i != argmax: # This if statement means we choose uniformly from all indices except the argmax.
+                return i    # (Since Q(s) in R^2, there is only one other choice.)
     else:
         return argmax
 
@@ -318,8 +319,8 @@ def BFF(T, learning_rate, batch_size, e = 0.1, Q = Net(), trueQgraph = None):
             
             new_s = cur_s + (ftr_s - nxt_s)
             
-            j      = compute_j(cur_s, cur_a, nxt_s, Q, e)
-            grad_j = compute_grad_j(cur_s, cur_a, new_s, Q, e)
+            j      = compute_j(cur_s, cur_a, nxt_s, Q)
+            grad_j = compute_grad_j(cur_s, cur_a, new_s, Q)
                 
             for l in range(len(grads)):
                 grads[l] += (j / batch_size) * grad_j[l]
@@ -335,7 +336,7 @@ def BFF(T, learning_rate, batch_size, e = 0.1, Q = Net(), trueQgraph = None):
     return Q, errors
 
 
-def monte_carlo(s, a, trueQ, e = 0.1, tol = 0.001, reps = 1000): 
+def monte_carlo(s, a, trueQ, e = 0.1, tol = 0.001, reps = 100): 
     """
     Computes a Monte Carlo estimate for the Q function given a value for Q* (trueQ)
     and a fixed epsilon-greedy policy based on Q*.
@@ -347,7 +348,6 @@ def monte_carlo(s, a, trueQ, e = 0.1, tol = 0.001, reps = 1000):
             reward can be no more than tol.
     reps  = Number of trials used to estimate Q(s, a).
     """
-    
     # T is defined so that the total reward incurred from time T to infinity is
     # at most tol.
     R_max = 2 # Max single-step reward
@@ -375,7 +375,6 @@ def MC(trueQ, e = 0.1, tol = 0.001, reps = 100, divisions = 50):
     policy based on trueQ) by running the monte_carlo method above on a mesh of
     points in [0, 2pi).
     """
-    
     Q = np.zeros((divisions, 2))
     
     for i, s in zip(range(divisions), np.linspace(0, 2 * np.pi, divisions)):
@@ -391,10 +390,12 @@ def MC(trueQ, e = 0.1, tol = 0.001, reps = 100, divisions = 50):
 np.random.seed(0)
 
 # Define hyperparameters.
-T             = 100000 # Length of training trajectory.
-learning_rate = 0.01   # Learning rate.
-batch_size    = 50     # Batch size.
-e             = 0.1    # Epsilon.
+T             = 1000000 # Length of training trajectory.
+learning_rate = 0.01    # Learning rate.
+batch_size    = 50      # Batch size.
+e             = 0.1     # Epsilon for epsilon-greedy choice. Note that this is not
+                        # the same as the epsilon in the Markov chain dynamics.
+                        # Maybe this should be 0.5 instead of 0.1?
 
 # First, learn true optimal Q based on a longer trajectory.
 trueQ, _      = UB(5 * T, learning_rate, batch_size, e, Net())
@@ -444,7 +445,8 @@ plt.plot(x, ds[:, 1], label='ds', color='r')
 plt.plot(x, bff[:, 1], label='bff', color='g')
 plt.title('Q, action 1')
 plt.legend()
-plt.savefig('plots/nn_q_control_test.png')
+plt.savefig('plots/nn_q_control.png')
+
 
 # Compute relative errors for each method.
 rel_e_UB  = [err / e_UB[0]  for err in e_UB]
@@ -465,4 +467,4 @@ plt.xlabel('Iteration')
 plt.ylabel('Relative error decay (log10 scale)')
 plt.title('Relative training error decay')
 plt.legend()
-plt.savefig('plots/nn_error_control_test.png')
+plt.savefig('plots/nn_error_control.png')
