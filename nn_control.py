@@ -3,12 +3,11 @@ import matplotlib.pyplot as plt
 import time
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 
 
 class Net(nn.Module):
     """
-    Define neural net architecture
+    Define neural net architecture.
     Input: s in R^2
     Computation:
     s_0 = s
@@ -17,6 +16,9 @@ class Net(nn.Module):
     s_2 = W_2 * a_1 + b_2, W_2 in R^{50 x 50}, b_2 in R^{50}, s_2 in R^{50}
     a_2 = cos(s_2) (applied coordinatewise)
     output = W_3 * a_2 + b_3, W_3 in R^{2 x 50}, b_3 in R^2, output in R^2
+    
+    The output of this net on input (cos(s), sin(s)) is a 2D vector whose first
+    (index 0) entry is Q(s, -1) and whose second (index 1) entry is Q(s, 1).
     """
     def __init__(self):
         super(Net, self).__init__()
@@ -43,7 +45,8 @@ def transition(s, a):
     """
     Computes a transition according to the Markov chain dynamics starting at
     state s and taking action a.
-    Refer to Section 4.2 in the paper.
+    Refer to Section 4.2 in the paper. a = 0 in the code corresponds to a = -1
+    in the paper, while a = 1 is the same in the code and the paper.
     """
     delta_s = a * epsilon + sigma * np.random.normal() * sqrt_eps
     return (s + delta_s) % (2 * np.pi)
@@ -269,14 +272,21 @@ def BFF(T, learning_rate, batch_size, e = 0.1, Q = Net(), trueQgraph = None):
     """
     SGD with the BFF approximation.
     
-    
+    For the previous two algorithms, we only needed to keep track of the current
+    time step and one time step in the future (cur_s and nxt_s, respectively).
+    For BFF, we need to keep track of one additional time step. This is the main
+    distinction between this method and the other two; the rest is identical
+    except for the definition of s_new.
     """
     start = time.time()
+    
     errors = np.zeros(int(T / batch_size))
+    
     x = np.linspace(0, 2 * np.pi)
     z = torch.stack([map_to_input(s) for s in x])
     
     print('Starting BFF SGD...')
+    
     cur_s = np.random.rand() * 2 * np.pi
     cur_a = e_greedy(Q(map_to_input(cur_s)), e)
     
@@ -284,10 +294,19 @@ def BFF(T, learning_rate, batch_size, e = 0.1, Q = Net(), trueQgraph = None):
     nxt_a = e_greedy(Q(map_to_input(nxt_s)), e)
     
     ftr_s = transition(nxt_s, nxt_a)
+    
     for k in range(int(T / batch_size)):
         if k % 100 == 0 and k > 0:
             print(f'ETA: {round(((time.time() - start) * (int(T / batch_size) - k) / k) / 60, 2)} min')
+        
         grads = [torch.zeros(w.shape) for w in Q.parameters()]
+        
+        # Relationship to notation in the paper:
+        #   cur_s = s_m
+        #   cur_a = a_m
+        #   nxt_s = s_{m+1}
+        #   new_s = s'_{m+1} = s_m + (s_{m+2} - s_{m+1})
+        #   ftr_s = s_{m+2}
         for i in range(batch_size):
             cur_s = nxt_s
             cur_a = nxt_a
@@ -317,9 +336,21 @@ def BFF(T, learning_rate, batch_size, e = 0.1, Q = Net(), trueQgraph = None):
 
 
 def monte_carlo(s, a, trueQ, e = 0.1, tol = 0.001, reps = 1000): 
+    """
+    Computes a Monte Carlo estimate for the Q function given a value for Q* (trueQ)
+    and a fixed epsilon-greedy policy based on Q*.
+    
+    s, a  = Starting state, action pair.
+    trueQ = Estimate for Q*.
+    e     = Value of epsilon for epsilon-greedy policy.
+    tol   = For each trial, we run the trajectory until the total discounted future
+            reward can be no more than tol.
+    reps  = Number of trials used to estimate Q(s, a).
+    """
+    
     # T is defined so that the total reward incurred from time T to infinity is
     # at most tol.
-    R_max = 2
+    R_max = 2 # Max single-step reward
     T = int(np.log((1 - g) * tol / R_max) / np.log(g)) + 1
     
     total = 0
@@ -328,47 +359,72 @@ def monte_carlo(s, a, trueQ, e = 0.1, tol = 0.001, reps = 1000):
         a_cur = a
         discount = 1
         for t in range(1, T):
+            # Transition, then compute reward.
             s_cur = transition(s_cur, a_cur)
             total += reward(s_cur) * discount
             a_cur = e_greedy(trueQ(map_to_input(s_cur)), e)
             discount *= g
+            
     empirical_avg = total / reps
     return empirical_avg
 
 
 def MC(trueQ, e = 0.1, tol = 0.001, reps = 100, divisions = 50):
+    """
+    Computes a Monte-Carlo estimate for the graph of Q (evaluated with an e-greedy
+    policy based on trueQ) by running the monte_carlo method above on a mesh of
+    points in [0, 2pi).
+    """
     
     Q = np.zeros((divisions, 2))
+    
     for i, s in zip(range(divisions), np.linspace(0, 2 * np.pi, divisions)):
         for a in range(2):
             print(f'Computing Q({s}, {a})...')
             Q[i, a] = monte_carlo(s, a, trueQ, e, tol, reps)
+            
     return Q
 
+###############################################################################
+# EXPERIMENTS
+###############################################################################
 np.random.seed(0)
 
-T             = 100000
-learning_rate = 0.01
-batch_size    = 50
-e             = 0.1
+# Define hyperparameters.
+T             = 100000 # Length of training trajectory.
+learning_rate = 0.01   # Learning rate.
+batch_size    = 50     # Batch size.
+e             = 0.1    # Epsilon.
 
+# First, learn true optimal Q based on a longer trajectory.
 trueQ, _      = UB(5 * T, learning_rate, batch_size, e, Net())
 
+# Define grid of points on which to evaluate each of the Q functions we learn
+# so that we can graph them.
 x = np.linspace(0, 2 * np.pi)
 z = torch.stack([map_to_input(s) for s in x])
+
+# Compute the graph of trueQ.
 trueQgraph = trueQ(z).detach()
 
+# Train Q according to each other the methods. Get values for Q as well as
+# error decay during training. Also compute a Monte-Carlo estimate for Q for a
+# fixed e-greedy policy based on trueQ.
 Q_UB,  e_UB  = UB(T, learning_rate, batch_size, e, Net(), trueQgraph)
 Q_DS,  e_DS  = DS(T, learning_rate, batch_size, e, Net(), trueQgraph)
 Q_BFF, e_BFF = BFF(T, learning_rate, batch_size, e, Net(), trueQgraph)
 Q_MC         = MC(trueQ)
 
+# Compute the graphs of each of the learned Q functions.
+# The Monte-Carlo Q is already given as a graph rather than a function; we are
+# just keeping variable names consistent across methods.
 mc  = Q_MC
 ub  = Q_UB(z).detach()
 ds  = Q_DS(z).detach()
 bff = Q_BFF(z).detach()
 true = trueQ(z).detach()
 
+# Graph Q(s, 0) vs. s.
 plt.figure()
 plt.subplot(1,2,1)
 plt.plot(x, true[:, 0], label='true', color='m')
@@ -379,6 +435,7 @@ plt.plot(x, bff[:, 0], label='bff', color='g')
 plt.title('Q, action 0')
 plt.legend()
 
+# Graph Q(s, 1) vs. s.
 plt.subplot(1,2,2)
 plt.plot(x, true[:, 1], label='true', color='m')
 plt.plot(x, mc[:, 1], label='mc', color='c')
@@ -389,15 +446,17 @@ plt.title('Q, action 1')
 plt.legend()
 plt.savefig('plots/nn_q_control_test.png')
 
-
+# Compute relative errors for each method.
 rel_e_UB  = [err / e_UB[0]  for err in e_UB]
 rel_e_DS  = [err / e_DS[0]  for err in e_DS]
 rel_e_BFF = [err / e_BFF[0] for err in e_BFF]
 
+# Compute log relative errors for each method.
 log_e_UB  = [np.log10(err) for err in rel_e_UB]
 log_e_DS  = [np.log10(err) for err in rel_e_DS]
 log_e_BFF = [np.log10(err) for err in rel_e_BFF]
 
+# Plot log relative error for each method.
 plt.figure()
 plt.plot(log_e_UB,  label='ub',  color='b')
 plt.plot(log_e_DS,  label='ds',  color='r')
