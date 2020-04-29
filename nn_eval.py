@@ -385,12 +385,12 @@ def MC(tol = 0.001, reps = 1000, divisions = 50):
 np.random.seed(0)
 
 # Define hyperparameters.
-T             = 1000000 # Length of training trajectory.
-learning_rate = 0.01   # Learning rate.
+T             = 500000 # Length of training trajectory.
+learning_rate = 0.1   # Learning rate.
 batch_size    = 50     # Batch size.
 
 # First, learn true optimal Q based on a longer trajectory.
-trueQ, _ = UB(5 * T, learning_rate, batch_size, Net())
+trueQ, _ = UB(3 * T, learning_rate, batch_size, Net())
 
 # Define grid of points on which to evaluate each of the Q functions we learn
 # so that we can graph them.
@@ -405,7 +405,7 @@ trueQgraph = trueQ(z).detach()
 Q_UB,  e_UB  = UB(T, learning_rate, batch_size, Net(), trueQgraph)
 Q_DS,  e_DS  = DS(T, learning_rate, batch_size, Net(), trueQgraph)
 Q_BFF, e_BFF = BFF(T, learning_rate, batch_size, Net(), trueQgraph)
-Q_MC         = MC()
+Q_MC         = MC(reps = 100)
 
 # Compute the graphs of each of the learned Q functions.
 # The Monte-Carlo Q is already given as a graph rather than a function; we are
