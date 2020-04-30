@@ -393,7 +393,7 @@ np.random.seed(0)
 T             = 1000000 # Length of training trajectory.
 learning_rate = 0.1    # Learning rate.
 batch_size    = 50      # Batch size.
-e             = 0.1     # Epsilon for epsilon-greedy choice. Note that this is not
+e             = 0.5     # Epsilon for epsilon-greedy choice. Note that this is not
                         # the same as the epsilon in the Markov chain dynamics.
                         # Maybe this should be 0.5 instead of 0.1?
 
@@ -445,7 +445,7 @@ plt.plot(x, ds[:, 1], label='ds', color='r')
 plt.plot(x, bff[:, 1], label='bff', color='g')
 plt.title('Q, action 1')
 plt.legend()
-plt.savefig('plots/4_q.png')
+plt.savefig('plots/7_q.png')
 
 
 # Compute relative errors for each method.
@@ -467,4 +467,4 @@ plt.xlabel('Iteration')
 plt.ylabel('Relative error decay (log10 scale)')
 plt.title('Relative training error decay')
 plt.legend()
-plt.savefig('plots/4_error.png')
+plt.savefig('plots/7_error.png')
