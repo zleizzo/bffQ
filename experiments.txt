@@ -1,0 +1,88 @@
+Currently running:
+
+NN eval (on Sherlock)
+Sampling from trajectory
+T = 500,000
+3x longer to train "true" Q
+lr = 0.1
+batch size = 50
+Results: Errors seem to have stabilized, although UB still
+not quite as good as true. MC is also jagged and doesn't
+quite match UB/true/BFF. Rerun with more reps for MC and
+more iterations.
+
+
+NN control (on laptop)
+Uniform sampling
+T = 100,000
+3x longer to train "true" Q
+lr = 0.1
+batch size = 50
+e = 0.1
+Results: Error still decaying at termination.
+
+
+Tabular eval (on laptop)
+Uniform sampling
+T = 1,000,000
+lr = 0.1
+batch size = 50
+Result: Error still decaying at termination.
+Also, unwittingly set sigma = 0 (no diffusion).
+Re-run with T = 10^7, sigma = 1.
+
+
+Tabular eval (Sherlock)
+Uniform sampling
+T = 10,000,000
+lr = 0.01
+bs = 50
+Result: Error still decaying at termination.
+Results look good, bff and ub are almost identical.
+Run again for longer.
+Don't need Monte Carlo since true is solved with Bellman
+equation.
+
+
+NOTE: FROM HERE ON OUT, save plots as <expt #>_<plt type>.png
+e.g. 1_error.png, 1_bellman.png, 1_q.png
+
+Tabular eval (Sherlock) #1 [running]
+Sampling: Uniform
+T = 10,000,000
+lr = 0.5
+bs = 50
+Results: Looks great! BFF and UB both match true closely.
+Re-run with trajectory sampling (experiment #5).
+
+NN eval (Sherlock) #2 [running]
+Sampling: Trajectory
+T = 1,000,000 (3x longer to train "true" Q)
+lr = 0.1
+bs = 50
+Results:
+
+NN control (Sherlock) #3 [running]
+Sampling: Uniform
+T = 1,000,000 (3x longer to train "true" Q)
+lr = 0.1
+bs = 50
+e = n/a
+Results:
+
+NN control (Sherlock) #4 [running]
+Sampling: Trajectory
+T = 1,000,000 (3x longer to train "true" Q)
+lr = 0.1
+bs = 50
+e = 0.1
+Results:
+
+Tabular eval (Sherlock) #5
+Sampling: Trajectory
+T = 10,000,000
+lr = 0.5
+bs = 50
+Results:
+
+
