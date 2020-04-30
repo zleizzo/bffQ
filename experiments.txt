@@ -47,7 +47,7 @@ equation.
 NOTE: FROM HERE ON OUT, save plots as <expt #>_<plt type>.png
 e.g. 1_error.png, 1_bellman.png, 1_q.png
 
-Tabular eval (Sherlock) #1 [running]
+Tabular eval (Sherlock) #1
 Sampling: Uniform
 T = 10,000,000
 lr = 0.5
@@ -55,34 +55,54 @@ bs = 50
 Results: Looks great! BFF and UB both match true closely.
 Re-run with trajectory sampling (experiment #5).
 
-NN eval (Sherlock) #2 [running]
+NN eval (Sherlock) #2
 Sampling: Trajectory
 T = 1,000,000 (3x longer to train "true" Q)
 lr = 0.1
 bs = 50
-Results:
+Results: Success! NN eval is completed.
 
-NN control (Sherlock) #3 [running]
+NN control (Sherlock) #3
 Sampling: Uniform
 T = 1,000,000 (3x longer to train "true" Q)
 lr = 0.1
 bs = 50
-e = n/a
-Results:
+e = 0.1
+Results: Results look good except for BFF.
+After revisiting the code, this is probably because the action
+was being updated incorrectly (at the very least, not uniform).
+Fix the action update and re-run with same hyperparams.
 
-NN control (Sherlock) #4 [running]
+NN control (Sherlock) #4
 Sampling: Trajectory
 T = 1,000,000 (3x longer to train "true" Q)
 lr = 0.1
 bs = 50
 e = 0.1
-Results:
+Results: The Q function is accurate on high-value states,
+but inaccurate for low value states. Increase e to 0.5 and re-run.
 
 Tabular eval (Sherlock) #5
 Sampling: Trajectory
 T = 10,000,000
 lr = 0.5
 bs = 50
-Results:
+Results: Success! Tabular eval is completed.
 
+NN control (Sherlock) #6
+Sampling: Uniform
+T = 1,000,000 (3x longer to train "true" Q)
+lr = 0.1
+bs = 50
+e = 0.1
+Fixed bug with BFF. (See experiment #3.)
+Results: 
 
+NN control (Sherlock) #7
+Sampling: Trajectory
+T = 1,000,000 (3x longer to train "true" Q)
+lr = 0.1
+bs = 50
+e = 0.5
+Results: The Q function is accurate on high-value states,
+but inaccurate for low value states. Increase e to 0.5 and re-run.
