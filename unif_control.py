@@ -305,7 +305,7 @@ def BFF(T, learning_rate, batch_size, e = 0.1, Q = Net(), trueQgraph = None):
         #   ftr_s = s_{m+2}
         for i in range(batch_size):
             cur_s = np.random.rand() * 2 * np.pi
-            cur_a = nxt_a
+            cur_a = np.random.randint(0, 2)
             
             nxt_s = ftr_s
             nxt_a = e_greedy(Q(map_to_input(nxt_s)), e)
@@ -440,7 +440,7 @@ plt.plot(x, ds[:, 1], label='ds', color='r')
 plt.plot(x, bff[:, 1], label='bff', color='g')
 plt.title('Q, action 1')
 plt.legend()
-plt.savefig('plots/3_q.png')
+plt.savefig('plots/6_q.png')
 
 
 # Compute relative errors for each method.
@@ -462,4 +462,4 @@ plt.xlabel('Iteration')
 plt.ylabel('Relative error decay (log10 scale)')
 plt.title('Relative training error decay')
 plt.legend()
-plt.savefig('plots/3_error.png')
+plt.savefig('plots/6_error.png')
