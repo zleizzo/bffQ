@@ -9,12 +9,13 @@ import random
 ###############################################################################
 g          = 0.9
 N          = 32
-sigma      = 0
+sigma      = 1
 actions    = [2 * np.pi / N, -2 * np.pi / N]
 grid_size  = 2 * np.pi / N
 dt         = 1
 
-lr         = 0.01
+T          = 10000000
+lr         = 0.5
 batch_size = 50
 
 reps       = 1000
@@ -74,12 +75,33 @@ def transition(s, a):
 
 
 # It seems like some states are never being visited. Check this?
-def UB(T, trueQ = None, Q_init = np.zeros((N, 2)), batch_size=1, P = None, r = None):
-    errors  = np.zeros(int(T / batch_size))
-    bellman = np.zeros(int(T / batch_size))
+def UB(T, trueQ = None, Q_init = np.zeros((N, 2)), batch_size = 1, P = None, r = None):
+    """
+    Unbiased SGD.
     
-    start = time.time()
-    Q = Q_init.copy()
+    We perform online, on-policy learning. That is, we use each step in the trajectory to
+    train exactly once, and we generate the trajectory with actions drawn from the fixed
+    policy pi.
+    
+    T = number of points to be generated from the trajectory.
+    The total number of SGD steps is therefore T / batch_size.
+    
+    Q_init = initial value for the |S| x |A| matrix Q
+    
+    trueQ = true Q matrix, solved for exactly using the Bellman equation
+    
+    P = transition matrix for the Markov dynamics with fixed policy pi
+    Note that this is the transition matrix on (s, a) pairs, so it is an |S||A| x |S||A| matrix.
+    
+    r = reward vector indexed by (s, a) pairs.
+    r(s, a) = expected reward at next state starting from s with action a
+    """
+    start = time.time() # Used for estimating runtime.
+    
+    errors  = np.zeros(int(T / batch_size)) # Initialize L2 error storage.
+    bellman = np.zeros(int(T / batch_size)) # Initialize Bellman residual storage.
+    
+    Q = Q_init.copy() # Used to create a new instance of Q, rather than modifying the Q which is supplied as an argument.
 
     print('Starting UB SGD...')
     
@@ -110,9 +132,11 @@ def UB(T, trueQ = None, Q_init = np.zeros((N, 2)), batch_size=1, P = None, r = N
             # For UB SGD, generate an independent copy of the next state.
             new_s = transition(cur_s, cur_a)
             
+            # Compute the policy vectors at s_{m+1} and s'_{m+1}.
             pi_nxt = policy_vec(nxt_s)
             pi_new = policy_vec(new_s)
             
+            # Refer to equations (23) and (24) from the paper.
             w1 = reward(nxt_s) + g * np.dot(Q[nxt_s, :], pi_nxt) - Q[cur_s, cur_a]
             w2 = reward(new_s) + g * np.dot(Q[new_s, :], pi_new) - Q[cur_s, cur_a]
             
@@ -308,9 +332,8 @@ Q_bellman = np.linalg.solve(np.eye(N * 2) - g * bigP.T, r)
 Q_bellman = Q_bellman.reshape((N, 2))
 Q_actual  = Q_bellman.copy()
 
-Q_MC  = MC(tol = 0.001, reps = 1000)
+#Q_MC  = MC(tol = 0.001, reps = 1000)
 
-T = 10000000
 Q_UB, errors_UB, bellman_UB    = UB(T, trueQ = Q_bellman, Q_init = np.zeros((N, 2)), batch_size = 50, P = bigP, r = r)
 Q_DS, errors_DS, bellman_DS    = DS(T, trueQ = Q_bellman, Q_init = np.zeros((N, 2)), batch_size = 50, P = bigP, r = r)
 Q_BFF, errors_BFF, bellman_BFF = BFF(T, trueQ = Q_bellman, Q_init = np.zeros((N, 2)), batch_size = 50, P = bigP, r = r)
@@ -332,9 +355,9 @@ plt.plot(log_errors_DS[:k], label='ds', color='r')
 plt.plot(log_errors_BFF[:k], label='bff', color='g')
 plt.xlabel('Iteration')
 plt.ylabel('Relative error decay (log10 scale)')
-plt.title('Relative training error decay, uniform (s, a) sampling')
+plt.title('Relative training error decay, (s, a) sampling from trajectory')
 plt.legend()
-plt.savefig('plots/tab_error_eval.png')
+plt.savefig('plots/5_error.png')
 
 plt.figure()
 plt.plot(bellman_UB[:k], label='ub', color='b')
@@ -342,31 +365,31 @@ plt.plot(bellman_DS[:k], label='ds', color='r')
 plt.plot(bellman_BFF[:k], label='bff', color='g')
 plt.xlabel('Iteration')
 plt.ylabel('Norm of Bellman residual')
-plt.title('Bellman residual decay, uniform (s, a) sampling')
+plt.title('Bellman residual decay, (s, a) sampling from trajectory')
 plt.legend()
-plt.savefig('plots/tab_bellman_eval.png')
+plt.savefig('plots/5_bellman.png')
 
 Q_actual = Q_actual.reshape((N, 2))
 plt.figure()
 plt.subplot(1, 2, 1)
-plt.plot(range(N), Q_MC[:, 0], label='mc', color='m')
+#plt.plot(range(N), Q_MC[:, 0], label='mc', color='m')
 plt.plot(range(N), Q_actual[:, 0], label='true', color='c')
 plt.plot(range(N), Q_UB[:, 0], label='ub', color='b')
 plt.plot(range(N), Q_DS[:, 0], label='ds', color='r')
 plt.plot(range(N), Q_BFF[:, 0], label='bff', color='g')
 plt.xlabel('(state, action) pair')
 plt.ylabel('Q value')
-plt.title('Learned Q function, action 0, uniform (s, a) sampling')
+plt.title('Learned Q function, action 0, (s, a) sampling from trajectory')
 plt.legend()
 
 plt.subplot(1, 2, 2)
-plt.plot(range(N), Q_MC[:, 1], label='mc', color='m')
+#plt.plot(range(N), Q_MC[:, 1], label='mc', color='m')
 plt.plot(range(N), Q_actual[:, 1], label='true', color='c')
 plt.plot(range(N), Q_UB[:, 1], label='ub', color='b')
 plt.plot(range(N), Q_DS[:, 1], label='ds', color='r')
 plt.plot(range(N), Q_BFF[:, 1], label='bff', color='g')
 plt.xlabel('(state, action) pair')
 plt.ylabel('Q value')
-plt.title('Learned Q function, action 1, uniform (s, a) sampling')
+plt.title('Learned Q function, action 1, (s, a) sampling from trajectory')
 plt.legend()
-plt.savefig('plots/tab_q_eval.png')
+plt.savefig('plots/5_q.png')
