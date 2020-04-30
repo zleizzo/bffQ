@@ -369,9 +369,9 @@ def monte_carlo(s, a, trueQ, e = 0.1, tol = 0.001, reps = 100):
     return empirical_avg
 
 
-def MC(trueQ, e = 0.1, tol = 0.001, reps = 100, divisions = 50):
+def MC(trueQ, e = 0.1, tol = 0.001, reps = 1000, divisions = 50):
     """
-    Computes a Monte-Carlo estimate for the graph of Q (evaluated with an e-greedy
+    Computes a Monte Carlo estimate for the graph of Q (evaluated with an e-greedy
     policy based on trueQ) by running the monte_carlo method above on a mesh of
     points in [0, 2pi).
     """
@@ -391,14 +391,14 @@ np.random.seed(0)
 
 # Define hyperparameters.
 T             = 1000000 # Length of training trajectory.
-learning_rate = 0.01    # Learning rate.
+learning_rate = 0.1    # Learning rate.
 batch_size    = 50      # Batch size.
 e             = 0.1     # Epsilon for epsilon-greedy choice. Note that this is not
                         # the same as the epsilon in the Markov chain dynamics.
                         # Maybe this should be 0.5 instead of 0.1?
 
 # First, learn true optimal Q based on a longer trajectory.
-trueQ, _      = UB(5 * T, learning_rate, batch_size, e, Net())
+trueQ, _ = UB(3 * T, learning_rate, batch_size, e, Net())
 
 # Define grid of points on which to evaluate each of the Q functions we learn
 # so that we can graph them.
@@ -409,15 +409,15 @@ z = torch.stack([map_to_input(s) for s in x])
 trueQgraph = trueQ(z).detach()
 
 # Train Q according to each other the methods. Get values for Q as well as
-# error decay during training. Also compute a Monte-Carlo estimate for Q for a
+# error decay during training. Also compute a Monte Carlo estimate for Q for a
 # fixed e-greedy policy based on trueQ.
 Q_UB,  e_UB  = UB(T, learning_rate, batch_size, e, Net(), trueQgraph)
 Q_DS,  e_DS  = DS(T, learning_rate, batch_size, e, Net(), trueQgraph)
 Q_BFF, e_BFF = BFF(T, learning_rate, batch_size, e, Net(), trueQgraph)
-Q_MC         = MC(trueQ)
+Q_MC         = MC(trueQ, reps = 100)
 
 # Compute the graphs of each of the learned Q functions.
-# The Monte-Carlo Q is already given as a graph rather than a function; we are
+# The Monte Carlo Q is already given as a graph rather than a function; we are
 # just keeping variable names consistent across methods.
 mc  = Q_MC
 ub  = Q_UB(z).detach()
@@ -445,7 +445,7 @@ plt.plot(x, ds[:, 1], label='ds', color='r')
 plt.plot(x, bff[:, 1], label='bff', color='g')
 plt.title('Q, action 1')
 plt.legend()
-plt.savefig('plots/nn_q_control.png')
+plt.savefig('plots/4_q.png')
 
 
 # Compute relative errors for each method.
@@ -467,4 +467,4 @@ plt.xlabel('Iteration')
 plt.ylabel('Relative error decay (log10 scale)')
 plt.title('Relative training error decay')
 plt.legend()
-plt.savefig('plots/nn_error_control.png')
+plt.savefig('plots/4_error.png')
