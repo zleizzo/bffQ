@@ -14,7 +14,8 @@ actions    = [2 * np.pi / N, -2 * np.pi / N]
 grid_size  = 2 * np.pi / N
 dt         = 1
 
-lr         = 0.1
+T          = 10000000
+lr         = 0.5
 batch_size = 50
 
 reps       = 1000
@@ -303,9 +304,6 @@ Q_bellman = np.linalg.solve(np.eye(N * 2) - g * bigP.T, r)
 Q_bellman = Q_bellman.reshape((N, 2))
 Q_actual  = Q_bellman.copy()
 
-Q_MC  = MC(tol = 0.001, reps = 1000)
-
-T = 10000000
 Q_UB, errors_UB, bellman_UB    = UB(T, trueQ = Q_bellman, Q_init = np.zeros((N, 2)), batch_size = 50, P = bigP, r = r)
 Q_DS, errors_DS, bellman_DS    = DS(T, trueQ = Q_bellman, Q_init = np.zeros((N, 2)), batch_size = 50, P = bigP, r = r)
 Q_BFF, errors_BFF, bellman_BFF = BFF(T, trueQ = Q_bellman, Q_init = np.zeros((N, 2)), batch_size = 50, P = bigP, r = r)
@@ -344,7 +342,6 @@ plt.savefig('plots/unif_tab_bellman_eval.png')
 Q_actual = Q_actual.reshape((N, 2))
 plt.figure()
 plt.subplot(1, 2, 1)
-plt.plot(range(N), Q_MC[:, 0], label='mc', color='m')
 plt.plot(range(N), Q_actual[:, 0], label='true', color='c')
 plt.plot(range(N), Q_UB[:, 0], label='ub', color='b')
 plt.plot(range(N), Q_DS[:, 0], label='ds', color='r')
@@ -355,7 +352,6 @@ plt.title('Learned Q function, action 0, uniform (s, a) sampling')
 plt.legend()
 
 plt.subplot(1, 2, 2)
-plt.plot(range(N), Q_MC[:, 1], label='mc', color='m')
 plt.plot(range(N), Q_actual[:, 1], label='true', color='c')
 plt.plot(range(N), Q_UB[:, 1], label='ub', color='b')
 plt.plot(range(N), Q_DS[:, 1], label='ds', color='r')
