@@ -283,14 +283,6 @@ def BFF(T, learning_rate, batch_size, e = 0.1, Q = Net(), trueQgraph = None):
     
     print('Starting BFF SGD...')
     
-    cur_s = np.random.rand() * 2 * np.pi
-    cur_a = np.random.randint(0, 2)
-    
-    nxt_s = transition(cur_s, cur_a)
-    nxt_a = e_greedy(Q(map_to_input(nxt_s)), e)
-    
-    ftr_s = transition(nxt_s, nxt_a)
-    
     for k in range(int(T / batch_size)):
         if k % 100 == 0 and k > 0:
             print(f'ETA: {round(((time.time() - start) * (int(T / batch_size) - k) / k) / 60, 2)} min')
@@ -307,8 +299,8 @@ def BFF(T, learning_rate, batch_size, e = 0.1, Q = Net(), trueQgraph = None):
             cur_s = np.random.rand() * 2 * np.pi
             cur_a = np.random.randint(0, 2)
             
-            nxt_s = ftr_s
-            nxt_a = e_greedy(Q(map_to_input(nxt_s)), e)
+            nxt_s = transition(cur_s, cur_a)
+            nxt_a = np.random.randint(0, 2)
             
             ftr_s = transition(nxt_s, nxt_a)
             
@@ -409,7 +401,7 @@ trueQgraph = trueQ(z).detach()
 Q_UB,  e_UB  = UB(T, learning_rate, batch_size, e, Net(), trueQgraph)
 Q_DS,  e_DS  = DS(T, learning_rate, batch_size, e, Net(), trueQgraph)
 Q_BFF, e_BFF = BFF(T, learning_rate, batch_size, e, Net(), trueQgraph)
-Q_MC         = MC(trueQ)
+Q_MC         = MC(trueQ, e = 0)
 
 # Compute the graphs of each of the learned Q functions.
 # The Monte Carlo Q is already given as a graph rather than a function; we are
@@ -440,7 +432,7 @@ plt.plot(x, ds[:, 1], label='ds', color='r')
 plt.plot(x, bff[:, 1], label='bff', color='g')
 plt.title('Q, action 1')
 plt.legend()
-plt.savefig('plots/6_q.png')
+plt.savefig('plots/8_q.png')
 
 
 # Compute relative errors for each method.
@@ -462,4 +454,4 @@ plt.xlabel('Iteration')
 plt.ylabel('Relative error decay (log10 scale)')
 plt.title('Relative training error decay')
 plt.legend()
-plt.savefig('plots/6_error.png')
+plt.savefig('plots/8_error.png')

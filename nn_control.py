@@ -414,7 +414,7 @@ trueQgraph = trueQ(z).detach()
 Q_UB,  e_UB  = UB(T, learning_rate, batch_size, e, Net(), trueQgraph)
 Q_DS,  e_DS  = DS(T, learning_rate, batch_size, e, Net(), trueQgraph)
 Q_BFF, e_BFF = BFF(T, learning_rate, batch_size, e, Net(), trueQgraph)
-Q_MC         = MC(trueQ, reps = 100)
+Q_MC         = MC(trueQ, e = 0, reps = 1000)
 
 # Compute the graphs of each of the learned Q functions.
 # The Monte Carlo Q is already given as a graph rather than a function; we are
@@ -445,8 +445,27 @@ plt.plot(x, ds[:, 1], label='ds', color='r')
 plt.plot(x, bff[:, 1], label='bff', color='g')
 plt.title('Q, action 1')
 plt.legend()
-plt.savefig('plots/7_q.png')
+plt.savefig('plots/9_q_mc.png')
 
+
+# Q plots without MC.
+plt.figure()
+plt.subplot(1,2,1)
+plt.plot(x, true[:, 0], label='true', color='m')
+plt.plot(x, ub[:, 0], label='ub', color='b')
+plt.plot(x, ds[:, 0], label='ds', color='r')
+plt.plot(x, bff[:, 0], label='bff', color='g')
+plt.title('Q, action 0')
+plt.legend()
+
+plt.subplot(1,2,2)
+plt.plot(x, true[:, 1], label='true', color='m')
+plt.plot(x, ub[:, 1], label='ub', color='b')
+plt.plot(x, ds[:, 1], label='ds', color='r')
+plt.plot(x, bff[:, 1], label='bff', color='g')
+plt.title('Q, action 1')
+plt.legend()
+plt.savefig('plots/9_q.png')
 
 # Compute relative errors for each method.
 rel_e_UB  = [err / e_UB[0]  for err in e_UB]
@@ -467,4 +486,4 @@ plt.xlabel('Iteration')
 plt.ylabel('Relative error decay (log10 scale)')
 plt.title('Relative training error decay')
 plt.legend()
-plt.savefig('plots/7_error.png')
+plt.savefig('plots/9_error.png')
