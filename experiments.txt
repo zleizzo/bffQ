@@ -127,13 +127,13 @@ lr = 0.1
 bs = 50
 e = 0.1
 Fixed more bugs with BFF. Also changed policy used for MC. (See experiment #6.)
-Results: 
+Results: Success!
 
 
-NN control (Sherlock) #7
+NN control (Sherlock) #9
 Sampling: Trajectory
 T = 1,000,000 (3x longer to train "true" Q)
 lr = 0.1
 bs = 50
 e = 0.5
-Results:
+Results: Success!
