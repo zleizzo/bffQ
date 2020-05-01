@@ -140,13 +140,11 @@ def UB(T, learning_rate, batch_size, Q = Net(), trueQgraph = None):
     Unbiased SGD.
     
     We perform online, on-policy learning. That is, we use each step in the trajectory to
-    train exactly once, and we generate the trajectory according to an e-greedy action choice
-    based on our current approximation for Q*.
+    train exactly once, and we generate the trajectory with actions drawn from the fixed
+    policy pi.
     
     T = number of points to be generated from the trajectory.
     The total number of SGD steps is therefore T / batch_size.
-    
-    e = epsilon for the epsilon-greedy action choice.
     
     Q = net that we will train to approximate Q*.
     
@@ -341,10 +339,10 @@ def monte_carlo(s, a, tol = 0.001, reps = 1000):
     """
     Computes a Monte Carlo estimate for the Q function based on the fixed policy pi.
     
-    s, a  = Starting state, action pair.
-    tol   = For each trial, we run the trajectory until the total discounted future
-            reward can be no more than tol.
-    reps  = Number of trials used to estimate Q(s, a).
+    s, a = Starting state, action pair.
+    tol  = For each trial, we run the trajectory until the total discounted future
+           reward can be no more than tol.
+    reps = Number of trials used to estimate Q(s, a).
     """
     # T is defined so that the total reward incurred from time T to infinity is
     # at most tol.
@@ -408,7 +406,7 @@ Q_BFF, e_BFF = BFF(T, learning_rate, batch_size, Net(), trueQgraph)
 Q_MC         = MC(reps = 1000)
 
 # Compute the graphs of each of the learned Q functions.
-# The Monte-Carlo Q is already given as a graph rather than a function; we are
+# The Monte Carlo Q is already given as a graph rather than a function; we are
 # just keeping variable names consistent across methods.
 mc   = Q_MC
 ub   = Q_UB(z).detach()
@@ -436,7 +434,7 @@ plt.plot(x, ds[:, 1], label='ds', color='r')
 plt.plot(x, bff[:, 1], label='bff', color='g')
 plt.title('Q, action 1')
 plt.legend()
-plt.savefig('plots/2_q_mc.png')
+plt.savefig('plots/nn_q_mc_eval.png')
 
 
 # Plots without MC
@@ -456,7 +454,7 @@ plt.plot(x, ds[:, 1], label='ds', color='r')
 plt.plot(x, bff[:, 1], label='bff', color='g')
 plt.title('Q, action 1')
 plt.legend()
-plt.savefig('plots/2_q.png')
+plt.savefig('plots/nn_q_eval.png')
 
 
 # Compute relative errors for each method.
@@ -478,4 +476,4 @@ plt.xlabel('Iteration')
 plt.ylabel('Relative error decay (log10 scale)')
 plt.title('Relative training error decay')
 plt.legend()
-plt.savefig('plots/2_error.png')
+plt.savefig('plots/nn_error_eval.png')

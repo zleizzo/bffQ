@@ -1,11 +1,9 @@
-from scipy.linalg import null_space
 import numpy as np
 import matplotlib.pyplot as plt
 import time
-import random
 
 ###############################################################################
-# Define parameters
+# Define hyperparameters
 ###############################################################################
 g          = 0.9
 N          = 32
@@ -20,7 +18,7 @@ batch_size = 50
 
 reps       = 1000
 
-random.seed(0)
+np.random.seed(0)
 ###############################################################################
 # Define methods for generating trajectory
 ###############################################################################
@@ -114,15 +112,17 @@ def UB(T, trueQ = None, Q_init = np.zeros((N, 2)), batch_size = 1, P = None, r =
         if k % 100 == 0 and k > 0:
             print(f'ETA: {round(((time.time() - start) * (int(T / batch_size) - k) / k) / 60, 2)} min')
         
+        # Initialize a variable to accumulate the batch gradient.
+        G = np.zeros((N, 2))
+        
         # Compute the gradient on the next batch.
         # Relationship to notation in the paper:
         #   cur_s = s_m
         #   cur_a = a_m
         #   nxt_s = s_{m+1}
         #   new_s = s'_{m+1}
-        G = np.zeros((N, 2))
         for i in range(batch_size):
-            # Move to next point in the trajectory and select an e-greedy action.
+            # Move to next point in the trajectory and select an action from the fixed policy.
             cur_s = nxt_s
             cur_a = policy(cur_s)
             
@@ -137,58 +137,64 @@ def UB(T, trueQ = None, Q_init = np.zeros((N, 2)), batch_size = 1, P = None, r =
             pi_new = policy_vec(new_s)
             
             # Refer to equations (23) and (24) from the paper.
+            # Here we compute the gradient for our current (state, action) and add it to
+            # the batch stochastic gradient G.
+            # Roughly speaking, the roles of s_{m+1} and s'_{m+1} can be interchanged.
+            # We average the effects of swapping s_{m+1} and s'_{m+1}.
             w1 = reward(nxt_s) + g * np.dot(Q[nxt_s, :], pi_nxt) - Q[cur_s, cur_a]
             w2 = reward(new_s) + g * np.dot(Q[new_s, :], pi_new) - Q[cur_s, cur_a]
-            
             G[cur_s, cur_a] -= 0.5 * w1
             G[cur_s, cur_a] -= 0.5 * w2
             for a in range(len(actions)):
                 G[new_s, a] += 0.5 * pi_new[a] * g * w1
                 G[nxt_s, a] += 0.5 * pi_nxt[a] * g * w2
         
+        # Update Q based on the batch stochastic gradient G.
         Q -= (lr / batch_size) * G
+        
+        # If we know the true value of Q already, compute the L2 error.
         if trueQ is not None:
             errors[k] = np.linalg.norm(Q.flatten() - trueQ.flatten())
+            
+        # If we know the transition matrix P, also compute the Bellman residual.
         if P is not None:
             bellman[k] = np.linalg.norm(r + (g * P.T - np.eye(2 * N)) @ Q.flatten())
-
+    
+    # Finally, return the learned Q, the L2 errors, and the Bellman residuals.
     return Q, errors, bellman
 
 
 def DS(T, trueQ = None, Q_init = np.zeros((N, 2)), batch_size=1, P = None, r = None):
+    """
+    Double sampling SGD.
+    
+    This is identical to UB SGD, except that new_s = nxt_s rather than an
+    independent sample. This corresponds to taking s'_{m+1} = s_{m+1}.
+    """
+    start = time.time()
+    
     errors  = np.zeros(int(T / batch_size))
     bellman = np.zeros(int(T / batch_size))
     
-    start = time.time()
     Q = Q_init.copy()
 
-    print('Starting UB SGD...')
+    print('Starting DS SGD...')
     
-    # Choose a random initial state
     nxt_s = np.random.randint(0, N)
     
-    # k denotes the k-th step of SGD.
     for k in range(int(T / batch_size)):
-        # Runtime estimate.
         if k % 100 == 0 and k > 0:
             print(f'ETA: {round(((time.time() - start) * (int(T / batch_size) - k) / k) / 60, 2)} min')
         
-        # Compute the gradient on the next batch.
-        # Relationship to notation in the paper:
-        #   cur_s = s_m
-        #   cur_a = a_m
-        #   nxt_s = s_{m+1}
-        #   new_s = s'_{m+1}
         G = np.zeros((N, 2))
+        
         for i in range(batch_size):
-            # Move to next point in the trajectory and select an e-greedy action.
             cur_s = nxt_s
             cur_a = policy(cur_s)
             
-            # Generate the next step in the trajectory based on our current state and action.
             nxt_s = transition(cur_s, cur_a)
             
-            # For UB SGD, generate an independent copy of the next state.
+            # We double-sample, setting s'_{m+1} = s_{m+1}.
             new_s = nxt_s
             
             pi_nxt = policy_vec(nxt_s)
@@ -196,7 +202,6 @@ def DS(T, trueQ = None, Q_init = np.zeros((N, 2)), batch_size=1, P = None, r = N
             
             w1 = reward(nxt_s) + g * np.dot(Q[nxt_s, :], pi_nxt) - Q[cur_s, cur_a]
             w2 = reward(new_s) + g * np.dot(Q[new_s, :], pi_new) - Q[cur_s, cur_a]
-            
             G[cur_s, cur_a] -= 0.5 * w1
             G[cur_s, cur_a] -= 0.5 * w2
             for a in range(len(actions)):
@@ -204,8 +209,10 @@ def DS(T, trueQ = None, Q_init = np.zeros((N, 2)), batch_size=1, P = None, r = N
                 G[nxt_s, a] += 0.5 * pi_nxt[a] * g * w2
         
         Q -= (lr / batch_size) * G
+        
         if trueQ is not None:
             errors[k] = np.linalg.norm(Q.flatten() - trueQ.flatten())
+            
         if P is not None:
             bellman[k] = np.linalg.norm(r + (g * P.T - np.eye(2 * N)) @ Q.flatten())
 
@@ -213,15 +220,24 @@ def DS(T, trueQ = None, Q_init = np.zeros((N, 2)), batch_size=1, P = None, r = N
 
 
 def BFF(T, trueQ = None, Q_init = np.zeros((N, 2)), batch_size=1, P = None, r = None):
+    """
+    SGD with the BFF approximation.
+    
+    For the previous two algorithms, we only needed to keep track of the current
+    time step and one time step in the future (cur_s and nxt_s, respectively).
+    For BFF, we need to keep track of one additional time step. This is the main
+    distinction between this method and the other two; the rest is identical
+    except for the definition of s_new.
+    """
+    start = time.time()
+    
     errors  = np.zeros(int(T / batch_size))
     bellman = np.zeros(int(T / batch_size))
     
-    start = time.time()
     Q = Q_init.copy()
 
-    print('Starting UB SGD...')
+    print('Starting BFF SGD...')
     
-    # Choose a random initial state
     cur_s = np.random.rand() * 2 * np.pi
     cur_a = policy(cur_s)
     
@@ -230,21 +246,19 @@ def BFF(T, trueQ = None, Q_init = np.zeros((N, 2)), batch_size=1, P = None, r = 
     
     ftr_s = transition(nxt_s, nxt_a)
     
-    # k denotes the k-th step of SGD.
     for k in range(int(T / batch_size)):
-        # Runtime estimate.
         if k % 100 == 0 and k > 0:
             print(f'ETA: {round(((time.time() - start) * (int(T / batch_size) - k) / k) / 60, 2)} min')
         
-        # Compute the gradient on the next batch.
+        G = np.zeros((N, 2))
+        
         # Relationship to notation in the paper:
         #   cur_s = s_m
         #   cur_a = a_m
         #   nxt_s = s_{m+1}
-        #   new_s = s'_{m+1}
-        G = np.zeros((N, 2))
+        #   new_s = s'_{m+1} = s_m + (s_{m+2} - s_{m+1})
+        #   ftr_s = s_{m+2}
         for i in range(batch_size):
-            # Move to next point in the trajectory and select an e-greedy action.
             cur_s = nxt_s
             cur_a = nxt_a
             
@@ -260,7 +274,6 @@ def BFF(T, trueQ = None, Q_init = np.zeros((N, 2)), batch_size=1, P = None, r = 
             
             w1 = reward(nxt_s) + g * np.dot(Q[nxt_s, :], pi_nxt) - Q[cur_s, cur_a]
             w2 = reward(new_s) + g * np.dot(Q[new_s, :], pi_new) - Q[cur_s, cur_a]
-            
             G[cur_s, cur_a] -= 0.5 * w1
             G[cur_s, cur_a] -= 0.5 * w2
             for a in range(len(actions)):
@@ -268,8 +281,10 @@ def BFF(T, trueQ = None, Q_init = np.zeros((N, 2)), batch_size=1, P = None, r = 
                 G[nxt_s, a] += 0.5 * pi_nxt[a] * g * w2
         
         Q -= (lr / batch_size) * G
+        
         if trueQ is not None:
             errors[k] = np.linalg.norm(Q.flatten() - trueQ.flatten())
+            
         if P is not None:
             bellman[k] = np.linalg.norm(r + (g * P.T - np.eye(2 * N)) @ Q.flatten())
 
@@ -277,13 +292,22 @@ def BFF(T, trueQ = None, Q_init = np.zeros((N, 2)), batch_size=1, P = None, r = 
 
 
 def monte_carlo(s, a, tol = 0.001, reps = 1000):
+    """
+    Computes a Monte Carlo estimate for the Q function based on the fixed policy pi.
+    
+    s, a  = Starting state, action pair.
+    tol   = For each trial, we run the trajectory until the total discounted future
+            reward can be no more than tol.
+    reps  = Number of trials used to estimate Q(s, a).
+    """
     # T is defined so that the total reward incurred from time T to infinity is
     # at most tol.
-    R_max = 2
+    R_max = 2 # Max single-step reward.
     T = int(np.log((1 - g) * tol / R_max) / np.log(g)) + 1
     
     total = 0
     for r in range(reps):
+        # Transition, then compute reward.
         s_cur = s
         a_cur = a
         discount = 1
@@ -292,11 +316,16 @@ def monte_carlo(s, a, tol = 0.001, reps = 1000):
             total += reward(s_cur) * discount
             a_cur = policy(s_cur)
             discount *= g
+            
     empirical_avg = total / reps
     return empirical_avg
 
 
 def MC(tol = 0.001, reps = 100000):
+    """
+    Computes a Monte Carlo estimate for the graph of Q based on the fixed policy
+    pi by running the monte_carlo method above on a mesh of points in [0, 2pi).
+    """
     Q = np.zeros((N, 2))
     for s in range(N):
         for a in range(2):
@@ -306,6 +335,12 @@ def MC(tol = 0.001, reps = 100000):
 
 
 def mc_P(reps = 100000):
+    """
+    Computes a Monte Carlo estimate for the (s, a) transition matrix P with the
+    fixed policy pi.
+    That is, computes P in R^{|S||A| x |S||A|} such that
+        P[2 * t + b, 2 * s + a] = Prob(move to (t, b) from (s, a)).
+    """
     P = np.zeros((2 * N, 2 * N))
     for s in range(N):
         for a in range(2):
@@ -320,76 +355,87 @@ def mc_P(reps = 100000):
 ###############################################################################
 # Run experiment
 ###############################################################################
+# Compute the transition matrix.
+# I called it bigP since this is the transition matrix for (s, a) pairs rather
+# than just the state transition matrix.
 bigP = mc_P(reps = 50000)
 
+# Compute the reward vector. This is also indexed by (s, a) pairs, r in R^{|S||A|}.
 r = np.zeros(N * 2)
 for s in range(N):
     for a in range(2):
         for t in range(N):
             r[2 * s + a] += (bigP[2 * t + 0, 2 * s + a] + bigP[2 * t + 1, 2 * s + a]) * reward(t)
 
+# Learn the true Q function by solving the Bellman equation exactly.
 Q_bellman = np.linalg.solve(np.eye(N * 2) - g * bigP.T, r)
 Q_bellman = Q_bellman.reshape((N, 2))
 Q_actual  = Q_bellman.copy()
 
+# Compute a Monte Carlo estimate for Q. We don't really need this since we get a better
+# result from solving the Bellman equation (our estimate for the transition matrix is very stable).
 #Q_MC  = MC(tol = 0.001, reps = 1000)
 
+# Compute Q according to each of the training methods. Also get the L2 errors and Bellman residuals from training.
 Q_UB, errors_UB, bellman_UB    = UB(T, trueQ = Q_bellman, Q_init = np.zeros((N, 2)), batch_size = 50, P = bigP, r = r)
 Q_DS, errors_DS, bellman_DS    = DS(T, trueQ = Q_bellman, Q_init = np.zeros((N, 2)), batch_size = 50, P = bigP, r = r)
 Q_BFF, errors_BFF, bellman_BFF = BFF(T, trueQ = Q_bellman, Q_init = np.zeros((N, 2)), batch_size = 50, P = bigP, r = r)
 
+# Compute the relative L2 errors of each method.
 initial_error  = np.linalg.norm(np.zeros(N * 2) - Q_actual.flatten())
 rel_errors_UB  = [err / initial_error for err in errors_UB]
 rel_errors_DS  = [err / initial_error for err in errors_DS]
 rel_errors_BFF = [err / initial_error for err in errors_BFF]
 
+# Compute log relative L2 errors of each method.
 log_errors_UB = [np.log10(err) for err in rel_errors_UB]
 log_errors_DS = [np.log10(err) for err in rel_errors_DS]
 log_errors_BFF = [np.log10(err) for err in rel_errors_BFF]
 
-k = min([len(log_errors_UB), len(log_errors_DS), len(log_errors_BFF)])
-
+# Plot log relative L2 errors.
 plt.figure()
-plt.plot(log_errors_UB[:k], label='ub', color='b')
-plt.plot(log_errors_DS[:k], label='ds', color='r')
-plt.plot(log_errors_BFF[:k], label='bff', color='g')
+plt.plot(log_errors_UB, label='ub', color='b')
+plt.plot(log_errors_DS, label='ds', color='r')
+plt.plot(log_errors_BFF, label='bff', color='g')
 plt.xlabel('Iteration')
 plt.ylabel('Relative error decay (log10 scale)')
 plt.title('Relative training error decay, (s, a) sampling from trajectory')
 plt.legend()
-plt.savefig('plots/5_error.png')
+plt.savefig('plots/tabular_error.png')
 
+# Plot Bellman residuals.
 plt.figure()
-plt.plot(bellman_UB[:k], label='ub', color='b')
-plt.plot(bellman_DS[:k], label='ds', color='r')
-plt.plot(bellman_BFF[:k], label='bff', color='g')
+plt.plot(bellman_UB, label='ub', color='b')
+plt.plot(bellman_DS, label='ds', color='r')
+plt.plot(bellman_BFF, label='bff', color='g')
 plt.xlabel('Iteration')
 plt.ylabel('Norm of Bellman residual')
-plt.title('Bellman residual decay, (s, a) sampling from trajectory')
+plt.title('Bellman residual decay, (s, a) sampled from trajectory')
 plt.legend()
-plt.savefig('plots/5_bellman.png')
+plt.savefig('plots/tabular_bellman.png')
 
+# Plot learned Q.
 Q_actual = Q_actual.reshape((N, 2))
 plt.figure()
 plt.subplot(1, 2, 1)
 #plt.plot(range(N), Q_MC[:, 0], label='mc', color='m')
-plt.plot(range(N), Q_actual[:, 0], label='true', color='c')
-plt.plot(range(N), Q_UB[:, 0], label='ub', color='b')
-plt.plot(range(N), Q_DS[:, 0], label='ds', color='r')
-plt.plot(range(N), Q_BFF[:, 0], label='bff', color='g')
-plt.xlabel('(state, action) pair')
+plt.plot(Q_actual[:, 0], label='true', color='c')
+plt.plot(Q_UB[:, 0], label='ub', color='b')
+plt.plot(Q_DS[:, 0], label='ds', color='r')
+plt.plot(Q_BFF[:, 0], label='bff', color='g')
+plt.xlabel('s')
 plt.ylabel('Q value')
-plt.title('Learned Q function, action 0, (s, a) sampling from trajectory')
+plt.title('Q, action 0')
 plt.legend()
 
 plt.subplot(1, 2, 2)
 #plt.plot(range(N), Q_MC[:, 1], label='mc', color='m')
-plt.plot(range(N), Q_actual[:, 1], label='true', color='c')
-plt.plot(range(N), Q_UB[:, 1], label='ub', color='b')
-plt.plot(range(N), Q_DS[:, 1], label='ds', color='r')
-plt.plot(range(N), Q_BFF[:, 1], label='bff', color='g')
-plt.xlabel('(state, action) pair')
+plt.plot(Q_actual[:, 1], label='true', color='c')
+plt.plot(Q_UB[:, 1], label='ub', color='b')
+plt.plot(Q_DS[:, 1], label='ds', color='r')
+plt.plot(Q_BFF[:, 1], label='bff', color='g')
+plt.xlabel('s')
 plt.ylabel('Q value')
-plt.title('Learned Q function, action 1, (s, a) sampling from trajectory')
+plt.title('Q, action 1')
 plt.legend()
-plt.savefig('plots/5_q.png')
+plt.savefig('plots/tabular_q.png')

@@ -445,7 +445,7 @@ plt.plot(x, ds[:, 1], label='ds', color='r')
 plt.plot(x, bff[:, 1], label='bff', color='g')
 plt.title('Q, action 1')
 plt.legend()
-plt.savefig('plots/9_q_mc.png')
+plt.savefig('plots/nn_q_mc_control.png')
 
 
 # Q plots without MC.
@@ -465,7 +465,7 @@ plt.plot(x, ds[:, 1], label='ds', color='r')
 plt.plot(x, bff[:, 1], label='bff', color='g')
 plt.title('Q, action 1')
 plt.legend()
-plt.savefig('plots/9_q.png')
+plt.savefig('plots/nn_q_control.png')
 
 # Compute relative errors for each method.
 rel_e_UB  = [err / e_UB[0]  for err in e_UB]
@@ -486,4 +486,4 @@ plt.xlabel('Iteration')
 plt.ylabel('Relative error decay (log10 scale)')
 plt.title('Relative training error decay')
 plt.legend()
-plt.savefig('plots/9_error.png')
+plt.savefig('plots/nn_error_control.png')
