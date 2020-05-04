@@ -139,15 +139,10 @@ def UB(T, trueQ = None, Q_init = np.zeros((N, 2)), batch_size = 1, P = None, r =
             # Refer to equations (23) and (24) from the paper.
             # Here we compute the gradient for our current (state, action) and add it to
             # the batch stochastic gradient G.
-            # Roughly speaking, the roles of s_{m+1} and s'_{m+1} can be interchanged.
-            # We average the effects of swapping s_{m+1} and s'_{m+1}.
-            w1 = reward(nxt_s) + g * np.dot(Q[nxt_s, :], pi_nxt) - Q[cur_s, cur_a]
-            w2 = reward(new_s) + g * np.dot(Q[new_s, :], pi_new) - Q[cur_s, cur_a]
-            G[cur_s, cur_a] -= 0.5 * w1
-            G[cur_s, cur_a] -= 0.5 * w2
+            j = reward(nxt_s) + g * np.dot(Q[nxt_s, :], pi_nxt) - Q[cur_s, cur_a]
+            G[cur_s, cur_a] -= j
             for a in range(len(actions)):
-                G[new_s, a] += 0.5 * pi_new[a] * g * w1
-                G[nxt_s, a] += 0.5 * pi_nxt[a] * g * w2
+                G[new_s, a] += pi_new[a] * g * j
         
         # Update Q based on the batch stochastic gradient G.
         Q -= (lr / batch_size) * G
@@ -200,13 +195,10 @@ def DS(T, trueQ = None, Q_init = np.zeros((N, 2)), batch_size=1, P = None, r = N
             pi_nxt = policy_vec(nxt_s)
             pi_new = policy_vec(new_s)
             
-            w1 = reward(nxt_s) + g * np.dot(Q[nxt_s, :], pi_nxt) - Q[cur_s, cur_a]
-            w2 = reward(new_s) + g * np.dot(Q[new_s, :], pi_new) - Q[cur_s, cur_a]
-            G[cur_s, cur_a] -= 0.5 * w1
-            G[cur_s, cur_a] -= 0.5 * w2
+            j = reward(nxt_s) + g * np.dot(Q[nxt_s, :], pi_nxt) - Q[cur_s, cur_a]
+            G[cur_s, cur_a] -= j
             for a in range(len(actions)):
-                G[new_s, a] += 0.5 * pi_new[a] * g * w1
-                G[nxt_s, a] += 0.5 * pi_nxt[a] * g * w2
+                G[new_s, a] += pi_new[a] * g * j
         
         Q -= (lr / batch_size) * G
         
@@ -272,13 +264,10 @@ def BFF(T, trueQ = None, Q_init = np.zeros((N, 2)), batch_size=1, P = None, r = 
             pi_nxt = policy_vec(nxt_s)
             pi_new = policy_vec(new_s)
             
-            w1 = reward(nxt_s) + g * np.dot(Q[nxt_s, :], pi_nxt) - Q[cur_s, cur_a]
-            w2 = reward(new_s) + g * np.dot(Q[new_s, :], pi_new) - Q[cur_s, cur_a]
-            G[cur_s, cur_a] -= 0.5 * w1
-            G[cur_s, cur_a] -= 0.5 * w2
+            j = reward(nxt_s) + g * np.dot(Q[nxt_s, :], pi_nxt) - Q[cur_s, cur_a]
+            G[cur_s, cur_a] -= j
             for a in range(len(actions)):
-                G[new_s, a] += 0.5 * pi_new[a] * g * w1
-                G[nxt_s, a] += 0.5 * pi_nxt[a] * g * w2
+                G[new_s, a] += pi_new[a] * g * j
         
         Q -= (lr / batch_size) * G
         
@@ -398,8 +387,8 @@ plt.plot(log_errors_UB, label='ub', color='b')
 plt.plot(log_errors_DS, label='ds', color='r')
 plt.plot(log_errors_BFF, label='bff', color='g')
 plt.xlabel('Iteration')
-plt.ylabel('Relative error decay (log10 scale)')
-plt.title('Relative training error decay, (s, a) sampling from trajectory')
+plt.ylabel('Relative error (log10 scale)')
+plt.title('Relative training error decay')
 plt.legend()
 plt.savefig('plots/tabular_error.png')
 
