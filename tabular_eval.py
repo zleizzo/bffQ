@@ -390,7 +390,7 @@ plt.xlabel('Iteration')
 plt.ylabel('Relative error (log10 scale)')
 plt.title('Relative training error decay')
 plt.legend()
-plt.savefig('plots/tabular_error.png')
+plt.savefig('plots/10_error.png')
 
 # Plot Bellman residuals.
 plt.figure()
@@ -401,7 +401,7 @@ plt.xlabel('Iteration')
 plt.ylabel('Norm of Bellman residual')
 plt.title('Bellman residual decay, (s, a) sampled from trajectory')
 plt.legend()
-plt.savefig('plots/tabular_bellman.png')
+plt.savefig('plots/10_bellman.png')
 
 # Plot learned Q.
 Q_actual = Q_actual.reshape((N, 2))
@@ -427,4 +427,4 @@ plt.xlabel('s')
 plt.ylabel('Q value')
 plt.title('Q, action 1')
 plt.legend()
-plt.savefig('plots/tabular_q.png')
+plt.savefig('plots/10_q.png')
