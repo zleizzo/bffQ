@@ -146,4 +146,5 @@ lr = 0.5
 bs = 50
 Changed method to bff-gd instead of bff-loss. Crucial algorithm change,
 bff-loss doesn't work for Q evaluation (see paper).
-Results: 
+Results: Performs even better than previous success (experiment #5). BFF is
+almost indistinguishable from UB.
