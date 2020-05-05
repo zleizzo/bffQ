@@ -1,6 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import time
+import csv
 
 ###############################################################################
 # Define hyperparameters
@@ -386,22 +387,18 @@ plt.figure()
 plt.plot(log_errors_UB, label='ub', color='b')
 plt.plot(log_errors_DS, label='ds', color='r')
 plt.plot(log_errors_BFF, label='bff', color='g')
-plt.xlabel('Iteration')
-plt.ylabel('Relative error (log10 scale)')
-plt.title('Relative training error decay')
+plt.title('Relative error decay, log scale')
 plt.legend()
-plt.savefig('plots/10_error.png')
+plt.savefig('plots/tabular_error.png')
 
 # Plot Bellman residuals.
 plt.figure()
 plt.plot(bellman_UB, label='ub', color='b')
 plt.plot(bellman_DS, label='ds', color='r')
 plt.plot(bellman_BFF, label='bff', color='g')
-plt.xlabel('Iteration')
-plt.ylabel('Norm of Bellman residual')
-plt.title('Bellman residual decay, (s, a) sampled from trajectory')
+plt.title('Bellman residual decay')
 plt.legend()
-plt.savefig('plots/10_bellman.png')
+plt.savefig('plots/tabular_bellman.png')
 
 # Plot learned Q.
 Q_actual = Q_actual.reshape((N, 2))
@@ -412,9 +409,7 @@ plt.plot(Q_actual[:, 0], label='true', color='c')
 plt.plot(Q_UB[:, 0], label='ub', color='b')
 plt.plot(Q_DS[:, 0], label='ds', color='r')
 plt.plot(Q_BFF[:, 0], label='bff', color='g')
-plt.xlabel('s')
-plt.ylabel('Q value')
-plt.title('Q, action 0')
+plt.title('Q, action 1')
 plt.legend()
 
 plt.subplot(1, 2, 2)
@@ -423,8 +418,41 @@ plt.plot(Q_actual[:, 1], label='true', color='c')
 plt.plot(Q_UB[:, 1], label='ub', color='b')
 plt.plot(Q_DS[:, 1], label='ds', color='r')
 plt.plot(Q_BFF[:, 1], label='bff', color='g')
-plt.xlabel('s')
-plt.ylabel('Q value')
-plt.title('Q, action 1')
+plt.title('Q, action 2')
 plt.legend()
-plt.savefig('plots/10_q.png')
+plt.savefig('plots/tabular_q.png')
+
+
+# Save Q data to csv files for easy re-plotting.
+with open('csvs/tab_eval/q_ub.csv', 'w', newline='') as csvfile:
+    writer = csv.writer(csvfile)
+    for row in Q_UB:
+        writer.writerow(row)
+
+with open('csvs/tab_eval/q_ds.csv', 'w', newline='') as csvfile:
+    writer = csv.writer(csvfile)
+    for row in Q_DS:
+        writer.writerow(row)
+
+with open('csvs/tab_eval/q_bff.csv', 'w', newline='') as csvfile:
+    writer = csv.writer(csvfile)
+    for row in Q_BFF:
+        writer.writerow(row)
+
+with open('csvs/tab_eval/q_true.csv', 'w', newline='') as csvfile:
+    writer = csv.writer(csvfile)
+    for row in Q_actual:
+        writer.writerow(row)
+
+# Save error data to csv files for easy re-plotting.
+with open('csvs/tab_eval/error_ub.csv', 'w', newline='') as csvfile:
+    writer = csv.writer(csvfile)
+    writer.writerow(log_errors_UB)
+
+with open('csvs/tab_eval/error_ds.csv', 'w', newline='') as csvfile:
+    writer = csv.writer(csvfile)
+    writer.writerow(log_errors_DS)
+
+with open('csvs/tab_eval/error_bff.csv', 'w', newline='') as csvfile:
+    writer = csv.writer(csvfile)
+    writer.writerow(log_errors_BFF)

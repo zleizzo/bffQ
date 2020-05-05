@@ -3,6 +3,7 @@ import matplotlib.pyplot as plt
 import time
 import torch
 import torch.nn as nn
+import csv
 
 
 class Net(nn.Module):
@@ -391,7 +392,7 @@ np.random.seed(0)
 
 # Define hyperparameters.
 T             = 1000000 # Length of training trajectory.
-learning_rate = 0.1    # Learning rate.
+learning_rate = 0.1     # Learning rate.
 batch_size    = 50      # Batch size.
 e             = 0.5     # Epsilon for epsilon-greedy choice. Note that this is not
                         # the same as the epsilon in the Markov chain dynamics.
@@ -433,7 +434,7 @@ plt.plot(x, mc[:, 0], label='mc', color='c')
 plt.plot(x, ub[:, 0], label='ub', color='b')
 plt.plot(x, ds[:, 0], label='ds', color='r')
 plt.plot(x, bff[:, 0], label='bff', color='g')
-plt.title('Q, action 0')
+plt.title('Q, action 1')
 plt.legend()
 
 # Graph Q(s, 1) vs. s.
@@ -443,7 +444,7 @@ plt.plot(x, mc[:, 1], label='mc', color='c')
 plt.plot(x, ub[:, 1], label='ub', color='b')
 plt.plot(x, ds[:, 1], label='ds', color='r')
 plt.plot(x, bff[:, 1], label='bff', color='g')
-plt.title('Q, action 1')
+plt.title('Q, action 2')
 plt.legend()
 plt.savefig('plots/nn_q_mc_control.png')
 
@@ -455,9 +456,7 @@ plt.plot(x, true[:, 0], label='true', color='m')
 plt.plot(x, ub[:, 0], label='ub', color='b')
 plt.plot(x, ds[:, 0], label='ds', color='r')
 plt.plot(x, bff[:, 0], label='bff', color='g')
-plt.xlabel('s')
-plt.ylabel('Q value')
-plt.title('Q, action 0')
+plt.title('Q, action 1')
 plt.legend()
 
 plt.subplot(1,2,2)
@@ -465,9 +464,7 @@ plt.plot(x, true[:, 1], label='true', color='m')
 plt.plot(x, ub[:, 1], label='ub', color='b')
 plt.plot(x, ds[:, 1], label='ds', color='r')
 plt.plot(x, bff[:, 1], label='bff', color='g')
-plt.xlabel('s')
-plt.ylabel('Q value')
-plt.title('Q, action 1')
+plt.title('Q, action 2')
 plt.legend()
 plt.savefig('plots/nn_q_control.png')
 
@@ -486,8 +483,45 @@ plt.figure()
 plt.plot(log_e_UB,  label='ub',  color='b')
 plt.plot(log_e_DS,  label='ds',  color='r')
 plt.plot(log_e_BFF, label='bff', color='g')
-plt.xlabel('Iteration')
-plt.ylabel('Relative error (log10 scale)')
-plt.title('Relative training error decay')
+plt.title('Relative error decay, log scale')
 plt.legend()
 plt.savefig('plots/nn_error_control.png')
+
+# Save Q data to csv files for easy re-plotting.
+with open('csvs/control/q_mc.csv', 'w', newline='') as csvfile:
+    writer = csv.writer(csvfile)
+    for row in mc:
+        writer.writerow(row)
+
+with open('csvs/control/q_ub.csv', 'w', newline='') as csvfile:
+    writer = csv.writer(csvfile)
+    for row in ub.numpy():
+        writer.writerow(row)
+
+with open('csvs/control/q_ds.csv', 'w', newline='') as csvfile:
+    writer = csv.writer(csvfile)
+    for row in ds.numpy():
+        writer.writerow(row)
+
+with open('csvs/control/q_bff.csv', 'w', newline='') as csvfile:
+    writer = csv.writer(csvfile)
+    for row in bff.numpy():
+        writer.writerow(row)
+
+with open('csvs/control/q_true.csv', 'w', newline='') as csvfile:
+    writer = csv.writer(csvfile)
+    for row in true.numpy():
+        writer.writerow(row)
+
+# Save error data to csv files for easy re-plotting.
+with open('csvs/control/error_ub.csv', 'w', newline='') as csvfile:
+    writer = csv.writer(csvfile)
+    writer.writerow(log_e_UB)
+
+with open('csvs/control/error_ds.csv', 'w', newline='') as csvfile:
+    writer = csv.writer(csvfile)
+    writer.writerow(log_e_DS)
+
+with open('csvs/control/error_bff.csv', 'w', newline='') as csvfile:
+    writer = csv.writer(csvfile)
+    writer.writerow(log_e_BFF)
