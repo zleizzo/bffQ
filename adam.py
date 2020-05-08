@@ -4,14 +4,9 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as func
-import matplotlib.pyplot as plt
-import copy
 
 env_name = "CartPole-v0"
 env = gym.make(env_name)
-
-print("Observation space:", env.observation_space)
-print("Action space:", env.action_space)
 
 ###############################################################################
 # Parameters
@@ -101,8 +96,7 @@ def compute_batch_F(batch, Q):
             grads[l] += minibatch_grads[l] / batch_size
         
     return grads
-# Finished testing to this point.
-###############################################################################
+
 
 def adam(batch, Q, ms, vs, t, lr=0.001, beta1=0.9, beta2=0.999, eps=1e-8):
     bias_correction1 = 1 - beta1 ** t
