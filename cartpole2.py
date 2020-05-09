@@ -2,11 +2,12 @@ import gym
 import random
 import copy
 import torch
+import csv
 import numpy as np
-import torch.nn as nn
-import torch.nn.functional as func
+import matplotlib.pyplot as plt
 from collections import deque
 from adam import *
+from scipy.stats import sem
 
 # env.reset(): Resets the environment and returns an initial state
 # env.step(action): Returns observation, reward, done, info
@@ -56,7 +57,7 @@ def my_adam_DS(max_episodes, learning_rate, batch_size, Q = Net()):
             ftr_s, ftr_rwd, ftr_done, _ = env.step(nxt_a)
             new_s                       = nxt_s
             
-            env.render()
+#            env.render()
 
             buffer.append((cur_s, cur_a, nxt_s, new_s, nxt_rwd, nxt_done))
             
@@ -108,7 +109,7 @@ def adam_BFF(max_episodes, learning_rate, batch_size, Q = Net()):
             ftr_s, ftr_rwd, ftr_done, _ = env.step(nxt_a)
             new_s                       = cur_s + (ftr_s - nxt_s)
             
-            env.render()
+#            env.render()
 
             buffer.append((cur_s, cur_a, nxt_s, new_s, nxt_rwd, nxt_done))
             
@@ -140,16 +141,71 @@ torch.manual_seed(0)
 DS_Q = Net()
 BFF_Q = copy.deepcopy(DS_Q)
 
-env.seed(0)
-np.random.seed(0)
-random.seed(0)
-DS_Q = my_adam_DS(300, 0.001, 50, DS_Q)
+rounds = 5
+max_episodes = 200
+
+ds_rwds  = np.zeros((rounds, max_episodes))
+bff_rwds = np.zeros((rounds, max_episodes))
+for r in range(rounds):
+    env.seed(r)
+    np.random.seed(r)
+    random.seed(r)
+    DS_Q, ds_rwds[r, :] = my_adam_DS(max_episodes, 0.001, 50, DS_Q)
+    
+    env.seed(r)
+    np.random.seed(r)
+    random.seed(r)
+    BFF_Q, bff_rwds[r, :] = adam_BFF(max_episodes, 0.001, 50, Q = BFF_Q)
+
+
+ds_sem   = sem(ds_rwds, axis=0)
+ds_mean  = np.mean(ds_rwds, axis=0)
+ds_lo    = np.quantile(ds_rwds, 0.25, axis=0)
+ds_mid   = np.quantile(ds_rwds, 0.5,  axis=0)
+ds_hi    = np.quantile(ds_rwds, 0.75, axis=0)
+
+bff_sem   = sem(bff_rwds, axis=0)
+bff_mean  = np.mean(bff_rwds, axis=0)
+bff_lo    = np.quantile(bff_rwds, 0.25, axis=0)
+bff_mid   = np.quantile(bff_rwds, 0.5,  axis=0)
+bff_hi    = np.quantile(bff_rwds, 0.75, axis=0)
+
+x = range(max_episodes)
+
+plt.style.use('ggplot')
+
+fig = plt.figure()
+ax = fig.add_subplot(111)
+
+ax.plot(x, ds_mean, label='ds')
+ax.fill_between(x, ds_mean - ds_sem, ds_mean + ds_sem, alpha = 0.3)
+
+ax.plot(x, bff_mean, label='bff')
+ax.fill_between(x, bff_mean - bff_sem, bff_mean + bff_sem, alpha = 0.3)
+
+plt.title('Average episode reward')
+plt.xlabel('Episode')
+plt.ylabel('Average reward +/- SEM')
+plt.legend()
+plt.show()
+plt.savefig('cartpole_rwd.png')
+
+
+with open('ds_rwds.csv', 'w', newline='') as csvfile:
+    writer = csv.writer(csvfile)
+    for row in ds_rwds:
+        writer.writerow(row)
+
+with open('bff_rwds.csv', 'w', newline='') as csvfile:
+    writer = csv.writer(csvfile)
+    for row in bff_rwds:
+        writer.writerow(row)
+
+
+# With all random seeds = 0, we get the following results:
+# DS:
 # First time reaching 200: Ep 178
 # Hitting 200 almost all of the time by Ep 214
-
-env.seed(0)
-np.random.seed(0)
-random.seed(0)
-BFF_Q = adam_BFF(300, 0.001, 50, Q = BFF_Q)
+# BFF:
 # First time reaching 200: Ep 77 (!)
 # Hitting 200 almost all of the time by Ep 107 (!)
