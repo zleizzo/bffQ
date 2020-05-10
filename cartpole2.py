@@ -3,6 +3,7 @@ import random
 import copy
 import torch
 import csv
+import time
 import numpy as np
 import matplotlib.pyplot as plt
 from collections import deque
@@ -146,11 +147,17 @@ max_episodes = 200
 
 ds_rwds  = np.zeros((rounds, max_episodes))
 bff_rwds = np.zeros((rounds, max_episodes))
+
+start = time.time()
 for r in range(rounds):
+    print(f'Running round {r}.')
+    if r > 0:
+        print(f'ETA: {round((time.time() - start) / 60, 2)} min')
     env.seed(r)
     np.random.seed(r)
     random.seed(r)
     DS_Q, ds_rwds[r, :] = my_adam_DS(max_episodes, 0.001, 50, DS_Q)
+    env.close()
     
     env.seed(r)
     np.random.seed(r)
@@ -191,12 +198,12 @@ plt.show()
 plt.savefig('cartpole_rwd.png')
 
 
-with open('ds_rwds.csv', 'w', newline='') as csvfile:
+with open('ds_rwds.csv', 'a', newline='') as csvfile:
     writer = csv.writer(csvfile)
     for row in ds_rwds:
         writer.writerow(row)
 
-with open('bff_rwds.csv', 'w', newline='') as csvfile:
+with open('bff_rwds.csv', 'a', newline='') as csvfile:
     writer = csv.writer(csvfile)
     for row in bff_rwds:
         writer.writerow(row)

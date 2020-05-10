@@ -106,14 +106,14 @@ def adam(batch, Q, ms, vs, t, lr=0.001, beta1=0.9, beta2=0.999, eps=1e-8):
 
     # Decay the first and second moment running average coefficient
     for grad, exp_avg, exp_avg_sq, w in zip(grads, ms, vs, Q.parameters()):
-        exp_avg.mul_(beta1).add_(grad, alpha=1 - beta1)
-        exp_avg_sq.mul_(beta2).addcmul_(grad, grad, value=1 - beta2)
-    
-        denom = (exp_avg_sq.sqrt() / math.sqrt(bias_correction2)).add_(eps)
-
-        step_size = lr / bias_correction1
-        
         with torch.no_grad():
+            exp_avg.mul_(beta1).add_(grad, alpha=1 - beta1)
+            exp_avg_sq.mul_(beta2).addcmul_(grad, grad, value=1 - beta2)
+    
+            denom = (exp_avg_sq.sqrt() / math.sqrt(bias_correction2)).add_(eps)
+
+            step_size = lr / bias_correction1
+        
             w.addcdiv_(exp_avg, denom, value=-step_size)
 
 
