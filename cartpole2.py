@@ -142,7 +142,7 @@ torch.manual_seed(0)
 DS_Q = Net()
 BFF_Q = copy.deepcopy(DS_Q)
 
-rounds = 5
+rounds = 1
 max_episodes = 200
 
 ds_rwds  = np.zeros((rounds, max_episodes))
@@ -151,10 +151,8 @@ bff_rwds = np.zeros((rounds, max_episodes))
 start = time.time()
 for r in range(rounds):
     print(f'Running round {r}.')
-    if r > 0:
-        print(f'ETA: {round((time.time() - start) / 60, 2)} min')
-    env.seed(r)
-    np.random.seed(r)
+    env.seed(r+5)
+    np.random.seed(r+5)
     random.seed(r)
     DS_Q, ds_rwds[r, :] = my_adam_DS(max_episodes, 0.001, 50, DS_Q)
     env.close()
@@ -163,6 +161,7 @@ for r in range(rounds):
     np.random.seed(r)
     random.seed(r)
     BFF_Q, bff_rwds[r, :] = adam_BFF(max_episodes, 0.001, 50, Q = BFF_Q)
+    print(f'Total runtime: {time.time() - start}')
 
 
 ds_sem   = sem(ds_rwds, axis=0)
