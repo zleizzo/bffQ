@@ -75,7 +75,7 @@ def my_adam_DS(max_episodes, learning_rate, batch_size, Q = Net()):
             ftr_s, ftr_rwd, ftr_done, _ = env.step(nxt_a)
             new_s                       = nxt_s
             
-            env.render()
+            # env.render()
 
             buffer.append((cur_s, cur_a, nxt_s, new_s, nxt_rwd, nxt_done))
             
@@ -127,7 +127,7 @@ def adam_BFF(max_episodes, learning_rate, batch_size, Q = Net()):
             ftr_s, ftr_rwd, ftr_done, _ = env.step(nxt_a)
             new_s                       = cur_s + (ftr_s - nxt_s)
             
-            env.render()
+            # env.render()
 
             buffer.append((cur_s, cur_a, nxt_s, new_s, nxt_rwd, nxt_done))
             
