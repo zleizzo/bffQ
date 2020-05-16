@@ -160,7 +160,7 @@ DS_Q = Net()
 BFF_Q = copy.deepcopy(DS_Q)
 
 rounds = 1
-max_episodes = 200
+max_episodes = 1000
 
 ds_rwds  = np.zeros((rounds, max_episodes))
 bff_rwds = np.zeros((rounds, max_episodes))
@@ -211,15 +211,15 @@ plt.xlabel('Episode')
 plt.ylabel('Average reward +/- SEM')
 plt.legend()
 plt.show()
-plt.savefig(f'{env}_rwd.png')
+plt.savefig(f'{env_name}_rwd.png')
 
 
-with open(f'{env}_ds_rwds.csv', 'w', newline='') as csvfile:
+with open(f'{env_name}_ds_rwds.csv', 'w', newline='') as csvfile:
     writer = csv.writer(csvfile)
     for row in ds_rwds:
         writer.writerow(row)
 
-with open(f'{env}_bff_rwds.csv', 'w', newline='') as csvfile:
+with open(f'{env_name}_bff_rwds.csv', 'w', newline='') as csvfile:
     writer = csv.writer(csvfile)
     for row in bff_rwds:
         writer.writerow(row)
