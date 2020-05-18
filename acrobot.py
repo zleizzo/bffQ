@@ -68,7 +68,8 @@ g            = 0.97 # Reward discount factor
 c            = 1    # Reward imbalance for right vs. left
 e_decay      = 0.99
 rounds       = 1
-max_episodes = 400
+max_episodes = 1
+experiment_n = 2
 
 ###############################################################################
 # Training methods
@@ -214,8 +215,7 @@ for r in range(rounds):
         np.random.seed(r)
         random.seed(r)
         BFF_Q, bff_rwds[r, :] = adam_BFF(max_episodes, 0.001, 50, Q = BFF_Q)
-        print(f'Total runtime: {time.time() - start}')
-        torch.save(BFF_Q.state_dict(), f'ab_BFF_Q_{r}')
+        torch.save(BFF_Q.state_dict(), f'acrobot_results/{experiment_n}/{method}_Q_{r}')
     
     if method == 'ds':
         env.seed(r)
@@ -223,7 +223,7 @@ for r in range(rounds):
         random.seed(r)
         DS_Q, ds_rwds[r, :] = my_adam_DS(max_episodes, 0.001, 50, Q = DS_Q)
         env.close()
-        torch.save(DS_Q.state_dict(), f'ab_DS_Q_{r}')
+        torch.save(DS_Q.state_dict(), f'acrobot_results/{experiment_n}/{method}_Q_{r}')
 
 if method == 'ds':
     ds_sem   = sem(ds_rwds, axis=0)
@@ -250,7 +250,7 @@ if method == 'ds':
     ax.plot(x, ds_mean, label='ds')
     ax.fill_between(x, ds_mean - ds_sem, ds_mean + ds_sem, alpha = 0.3)
     
-    with open('acrobot_ds_rwds.csv', 'a', newline='') as csvfile:
+    with open(f'acrobot_results/{experiment_n}/acrobot_ds_rwds.csv', 'w', newline='') as csvfile:
         writer = csv.writer(csvfile)
         for row in ds_rwds:
             writer.writerow(row)
@@ -259,7 +259,7 @@ if method == 'bff':
     ax.plot(x, bff_mean, label='bff')
     ax.fill_between(x, bff_mean - bff_sem, bff_mean + bff_sem, alpha = 0.3)
     
-    with open('acrobot_bff_rwds.csv', 'a', newline='') as csvfile:
+    with open(f'acrobot_results/{experiment_n}/acrobot_bff_rwds.csv', 'w', newline='') as csvfile:
         writer = csv.writer(csvfile)
         for row in bff_rwds:
             writer.writerow(row)
@@ -269,4 +269,4 @@ plt.xlabel('Episode')
 plt.ylabel('Average reward +/- SEM')
 plt.legend()
 # plt.show()
-plt.savefig('acrobot_rwd.png')
+plt.savefig(f'acrobot_results/{experiment_n}/{method}_acrobot_rwd.png')
