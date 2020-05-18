@@ -68,7 +68,7 @@ g            = 0.97 # Reward discount factor
 c            = 1    # Reward imbalance for right vs. left
 e_decay      = 0.99
 rounds       = 1
-max_episodes = 1
+max_episodes = 400
 experiment_n = 2
 
 ###############################################################################
