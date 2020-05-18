@@ -64,8 +64,11 @@ class Net(nn.Module):
 ###############################################################################
 # Parameters
 ###############################################################################
-g = 0.97 # Reward discount factor
-c = 1    # Reward imbalance for right vs. left
+g            = 0.97 # Reward discount factor
+c            = 1    # Reward imbalance for right vs. left
+e_decay      = 0.99
+rounds       = 1
+max_episodes = 400
 
 ###############################################################################
 # Training methods
@@ -117,7 +120,7 @@ def my_adam_DS(max_episodes, learning_rate, batch_size, Q = Net()):
                 
         print(f'Total reward for episode {episode + 1}: {total_rwd}')
         rwds[episode] = total_rwd
-        e = max(0.1, 0.95 * e)
+        e = max(0.1, e_decay * e)
                     
     return Q, rwds
 
@@ -170,10 +173,27 @@ def adam_BFF(max_episodes, learning_rate, batch_size, Q = Net()):
                             
         print(f'Total reward for episode {episode + 1}: {total_rwd}')
         rwds[episode] = total_rwd
-        e = max(0.1, 0.95 * e)
+        e = max(0.1, e_decay * e)
                     
     return Q, rwds
 
+
+def deploy_model(Q, num_episodes):
+    rwds = np.zeros(num_episodes)
+    
+    for episode in range(num_episodes):
+        s = env.reset()
+        total_rwd = 0
+        
+        while tip(s) > -1:
+            best_a = torch.argmax(Q(torch.Tensor(s)))
+            s, rwd, done, _ = env.step(best_a)
+            env.render()
+            total_rwd += rwd
+        
+        rwds[episode] = total_rwd
+    
+    return rwds
 
 ###############################################################################
 # Run tests
@@ -181,9 +201,6 @@ def adam_BFF(max_episodes, learning_rate, batch_size, Q = Net()):
 torch.manual_seed(0)
 DS_Q = Net()
 BFF_Q = copy.deepcopy(DS_Q)
-
-rounds = 1
-max_episodes = 200
 
 ds_rwds  = np.zeros((rounds, max_episodes))
 bff_rwds = np.zeros((rounds, max_episodes))
@@ -247,7 +264,7 @@ if method == 'bff':
         for row in bff_rwds:
             writer.writerow(row)
 
-plt.title('Average episode reward')
+plt.title('Solve time per episode (acrobot)')
 plt.xlabel('Episode')
 plt.ylabel('Average reward +/- SEM')
 plt.legend()
