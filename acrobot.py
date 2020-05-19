@@ -10,6 +10,7 @@ from collections import deque
 from adam import *
 from scipy.stats import sem
 import sys
+import os
 
 # env.reset(): Resets the environment and returns an initial state
 # env.step(action): Returns observation, reward, done, info
@@ -19,6 +20,9 @@ import sys
 # info: Extra stuff useful debugging, e.g. may contain probabilities of a given transition, etc. Don't use for learning.
 
 method = sys.argv[1]
+opt_method = sys.argv[2]
+# method = 'bff'
+# opt_method = 'sgd'
 
 env_name = "Acrobot-v1"
 env = gym.make(env_name)
@@ -71,10 +75,18 @@ rounds       = 1
 max_episodes = 400
 experiment_n = 2
 
+experiment_path = f'acrobot_results/{experiment_n}'
+if not os.path.isdir(experiment_path):
+    os.mkdir(experiment_path)
+
+results_path = f'acrobot_results/{experiment_n}/{opt_method}'
+if not os.path.isdir(results_path):
+    os.mkdir(results_path)
+
 ###############################################################################
 # Training methods
 ###############################################################################
-def my_adam_DS(max_episodes, learning_rate, batch_size, Q = Net()):
+def DS(max_episodes, learning_rate, batch_size, Q = Net(), opt_method = opt_method):
     episode = 0
     e = 1.0
     buffer = deque(maxlen=10000)
@@ -108,8 +120,11 @@ def my_adam_DS(max_episodes, learning_rate, batch_size, Q = Net()):
             sample_size = min(batch_size, len(buffer))
             batch       = random.choices(buffer, k=sample_size)
             
-            t += 1                       
-            adam(batch, Q, ms, vs, t)
+            t += 1
+            if opt_method == 'adam':
+                adam(batch, Q, ms, vs, t, lr = learning_rate)
+            elif opt_method == 'sgd':
+                sgd(batch, Q, learning_rate)
             
             cur_s         = nxt_s
             cur_a         = nxt_a
@@ -126,7 +141,7 @@ def my_adam_DS(max_episodes, learning_rate, batch_size, Q = Net()):
     return Q, rwds
 
 
-def adam_BFF(max_episodes, learning_rate, batch_size, Q = Net()):
+def BFF(max_episodes, learning_rate, batch_size, Q = Net(), opt_method = opt_method):
     episode = 0
     e = 1.0
     buffer = deque(maxlen=10000)
@@ -161,8 +176,11 @@ def adam_BFF(max_episodes, learning_rate, batch_size, Q = Net()):
             sample_size = min(batch_size, len(buffer))
             batch       = random.choices(buffer, k=sample_size)
             
-            t += 1                       
-            adam(batch, Q, ms, vs, t)
+            t += 1
+            if opt_method == 'adam':
+                adam(batch, Q, ms, vs, t, lr = learning_rate)
+            elif opt_method == 'sgd':
+                sgd(batch, Q, learning_rate)
             
             cur_s         = nxt_s
             cur_a         = nxt_a
@@ -214,16 +232,16 @@ for r in range(rounds):
         env.seed(r)
         np.random.seed(r)
         random.seed(r)
-        BFF_Q, bff_rwds[r, :] = adam_BFF(max_episodes, 0.001, 50, Q = BFF_Q)
-        torch.save(BFF_Q.state_dict(), f'acrobot_results/{experiment_n}/{method}_Q_{r}')
+        BFF_Q, bff_rwds[r, :] = BFF(max_episodes, 0.001, 50, Q = BFF_Q, opt_method = opt_method)
+        torch.save(BFF_Q.state_dict(), f'acrobot_results/{experiment_n}/{opt_method}/{method}_Q_{r}')
     
     if method == 'ds':
         env.seed(r)
         np.random.seed(r)
         random.seed(r)
-        DS_Q, ds_rwds[r, :] = my_adam_DS(max_episodes, 0.001, 50, Q = DS_Q)
+        DS_Q, ds_rwds[r, :] = DS(max_episodes, 0.001, 50, Q = DS_Q, opt_method = opt_method)
         env.close()
-        torch.save(DS_Q.state_dict(), f'acrobot_results/{experiment_n}/{method}_Q_{r}')
+        torch.save(DS_Q.state_dict(), f'acrobot_results/{experiment_n}/{opt_method}/{method}_Q_{r}')
 
 if method == 'ds':
     ds_sem   = sem(ds_rwds, axis=0)
@@ -250,7 +268,7 @@ if method == 'ds':
     ax.plot(x, ds_mean, label='ds')
     ax.fill_between(x, ds_mean - ds_sem, ds_mean + ds_sem, alpha = 0.3)
     
-    with open(f'acrobot_results/{experiment_n}/acrobot_ds_rwds.csv', 'w', newline='') as csvfile:
+    with open(f'acrobot_results/{experiment_n}/{opt_method}/acrobot_ds_rwds.csv', 'w', newline='') as csvfile:
         writer = csv.writer(csvfile)
         for row in ds_rwds:
             writer.writerow(row)
@@ -259,7 +277,7 @@ if method == 'bff':
     ax.plot(x, bff_mean, label='bff')
     ax.fill_between(x, bff_mean - bff_sem, bff_mean + bff_sem, alpha = 0.3)
     
-    with open(f'acrobot_results/{experiment_n}/acrobot_bff_rwds.csv', 'w', newline='') as csvfile:
+    with open(f'acrobot_results/{experiment_n}/{opt_method}/acrobot_bff_rwds.csv', 'w', newline='') as csvfile:
         writer = csv.writer(csvfile)
         for row in bff_rwds:
             writer.writerow(row)
@@ -269,4 +287,4 @@ plt.xlabel('Episode')
 plt.ylabel('Average reward +/- SEM')
 plt.legend()
 # plt.show()
-plt.savefig(f'acrobot_results/{experiment_n}/{method}_acrobot_rwd.png')
+plt.savefig(f'acrobot_results/{experiment_n}/{opt_method}/{method}_acrobot_rwd.png')
