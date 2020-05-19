@@ -98,6 +98,13 @@ def compute_batch_F(batch, Q):
     return grads
 
 
+def sgd(batch, Q, lr=0.001):
+    grads = compute_batch_F(batch, Q)
+    for grad, w in zip(grads, Q.parameters()):
+        with torch.no_grad():
+            w.sub_(grad, alpha=lr)
+
+
 def adam(batch, Q, ms, vs, t, lr=0.001, beta1=0.9, beta2=0.999, eps=1e-8):
     bias_correction1 = 1 - beta1 ** t
     bias_correction2 = 1 - beta2 ** t
