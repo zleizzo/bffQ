@@ -58,7 +58,7 @@ class Net(nn.Module):
 g = 0.97 # Reward discount factor
 batch_size = 1
 rounds = 1
-max_episodes = 10
+max_episodes = 1000
 experiment_n = 4
 method = sys.argv[1]
 opt_method = sys.argv[2]
