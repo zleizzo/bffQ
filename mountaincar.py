@@ -103,20 +103,20 @@ class Net(nn.Module):
 # Parameters
 ###############################################################################
 g             = 0.97 # Reward discount factor
-e0            = 0.8
+e0            = 0.5
 batch_size    = 50
 rounds        = 1
-max_episodes  = 1000
+max_episodes  = 500
 learning_rate = 0.001
 maxlen        = 100
 bins          = 20
 unif          = True
 experiment_n  = 5
-# method      = sys.argv[1]
-# opt_method  = sys.argv[2]
+method      = sys.argv[1]
+opt_method  = sys.argv[2]
 
-method = 'ds'
-opt_method = 'sgd'
+# method = 'ds'
+# opt_method = 'adam'
 
 experiment_path = f'mountaincar_results/{experiment_n}'
 if not os.path.isdir(experiment_path):
@@ -321,11 +321,13 @@ def unif_training(method, max_episodes, learning_rate, batch_size, Q = Net(), op
             # nxt_rwd = nxt_time_rwd + g * abs(ftr_s[1]) - abs(nxt_s[1]) # Reward based on potentials
             total_rwd += nxt_rwd
             
-            env.render()
+            # env.render()
             
             experience = (cur_s, cur_a, nxt_s, new_s, nxt_rwd, nxt_done)
             update_memory(experience, memory, maxlen = maxlen, bins = bins)
             t += 1
+            if t % 200 == 0:
+                print(f'Max pos @ step {-total_time_rwd}: {max_pos}')
             
             batch = unif_batch(memory, min(t, batch_size))
             
@@ -346,7 +348,7 @@ def unif_training(method, max_episodes, learning_rate, batch_size, Q = Net(), op
                 max_pos = nxt_s[0]
             
         if cur_s[0] >= 0.5:
-            e = max(e * 0.99, 0.05)
+            e = max(e * 0.95, 0.05)
             learning_rate *= 0.99
                 
         print(f'Time for episode {episode + 1}: {-total_time_rwd}')
