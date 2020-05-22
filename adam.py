@@ -54,8 +54,8 @@ def compute_batch_loss(batch, Q):
         batch_cur_s = experience[0]
         batch_cur_a = experience[1]
         batch_nxt_s = experience[2]
-        batch_rwd = experience[4]
-        batch_done = experience[5]
+        batch_rwd   = experience[4]
+        batch_done  = experience[5]
         
         loss += compute_j(batch_cur_s, batch_cur_a, batch_nxt_s, batch_rwd, batch_done, Q) ** 2
     return loss
@@ -88,8 +88,8 @@ def compute_batch_F(batch, Q):
         cur_a = experience[1]
         nxt_s = experience[2]
         new_s = experience[3]
-        rwd = experience[4]
-        done = experience[5]
+        rwd   = experience[4]
+        done  = experience[5]
         
         minibatch_grads = compute_F(cur_s, cur_a, nxt_s, new_s, rwd, done, Q)
         for l in range(len(grads)):
@@ -124,6 +124,97 @@ def adam(batch, Q, ms, vs, t, lr=0.001, beta1=0.9, beta2=0.999, eps=1e-8):
             w.addcdiv_(exp_avg, denom, value=-step_size)
 
 
+###############################################################################
+# PD Methods
+###############################################################################
+def compute_grad_y(cur_s, cur_a, y):
+    cur_s = torch.Tensor(cur_s)
+    y.zero_grad()
+    computation = y(cur_s)[cur_a]
+    y.backward()
+    return [w.grad.data for w in y.parameters()]
+
+
+def compute_y_step(cur_s, cur_a, nxt_s, rwd, done, Q, y):
+    grads  = [torch.zeros(w.shape) for w in y.parameters()]
+    grad_y = compute_grad_y(cur_s, cur_a, y)
+    
+    with torch.no_grad():
+        for i in range(len(grads)):
+            delta    = compute_j(cur_s, cur_a, nxt_s, rwd, done, Q)
+            grads[i] = grad_y[i].mul(delta - y(torch.Tensor(cur_s))[cur_a])
+    
+    return grads
+
+
+def compute_Q_step(cur_s, cur_a, nxt_s, rwd, done, Q, y):
+    """
+    Note: This requires y to be updated to w_{k+1} first!
+    """
+    grads = [torch.zeros(w.shape) for w in y.parameters()]
+    grad_j = compute_grad_j(cur_s, cur_a, nxt_s, rwd, done, Q)
+    
+    with torch.no_grad():
+        for i in range(len(grads)):
+            grads[i] = grad_j[i].mul(y(torch.Tensor(cur_s))[cur_a])
+    
+    return grads
+
+
+def compute_batch_y_step(batch, Q, y):
+    grads = [torch.zeros(w.shape) for w in Q.parameters()]
+    batch_size = len(batch)
+    
+    with torch.no_grad():
+        for experience in batch:
+            cur_s = experience[0]
+            cur_a = experience[1]
+            nxt_s = experience[2]
+            rwd   = experience[4]
+            done  = experience[5]
+            
+            minibatch_grads = compute_y_step(cur_s, cur_a, nxt_s, rwd, done, Q, y)
+            for l in range(len(grads)):
+                grads[l] += minibatch_grads[l] / batch_size
+        
+    return grads
+
+
+def compute_batch_Q_step(batch, Q, y):
+    
+    grads = [torch.zeros(w.shape) for w in Q.parameters()]
+    batch_size = len(batch)
+    
+    with torch.no_grad():
+        for experience in batch:
+            cur_s = experience[0]
+            cur_a = experience[1]
+            nxt_s = experience[2]
+            new_s = experience[3]
+            rwd   = experience[4]
+            done  = experience[5]
+            
+            minibatch_grads = compute_Q_step(cur_s, cur_a, nxt_s, rwd, done, Q, y)
+            for l in range(len(grads)):
+                grads[l] += minibatch_grads[l] / batch_size
+        
+    return grads
+
+
+def pd_step(batch, Q, y, beta = 0.001, eta = 0.001):
+    y_steps = compute_batch_y_step(batch, Q, y)
+    with torch.no_grad():
+        for step, w in zip(y_steps, y.parameters()):
+            w.add_(step, alpha=beta)
+    
+    Q_steps = compute_batch_Q_step(batch, Q, y)
+    with torch.no_grad():
+        for step, w in zip(Q_steps, Q.parameters()):
+            w.sub_(step, alpha=eta)
+
+###############################################################################
+# Testing
+###############################################################################
 def my_adam(batch, Q, ms, vs, t, lr=0.001, beta1=0.9, beta2=0.999, eps=1e-8):
     old = [w.clone() for w in Q.parameters()]
     adam(batch, Q, ms, vs, t, lr, beta1, beta2, eps)
@@ -145,3 +236,5 @@ def torch_adam(batch, optimizer, Q):
     steps = [w_old - w_new for w_old, w_new in zip(old, Q.parameters())]
                 
     return steps
+
+

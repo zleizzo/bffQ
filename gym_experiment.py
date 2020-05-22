@@ -10,6 +10,7 @@ from collections import deque
 from adam import *
 from scipy.stats import sem
 import sys
+import os
 
 # env.reset(): Resets the environment and returns an initial state
 # env.step(action): Returns observation, reward, done, info
@@ -18,48 +19,75 @@ import sys
 # done: True if episode is finished, otherwise false
 # info: Extra stuff useful debugging, e.g. may contain probabilities of a given transition, etc. Don't use for learning.
 
-env_name = sys.argv[1]
-# env_name = "LunarLander-v2"
+# env_name = sys.argv[1]
+env_name = "LunarLander-v2"
 env = gym.make(env_name)
 
 print("Observation space:", env.observation_space)
 print("Action space:", env.action_space)
 
+###############################################################################
+# Parameters
+###############################################################################
+experiment_n   = 1
+
+new_method     = sys.argv[1]
+opt_method     = sys.argv[2]
+
+train_episodes = 2000
+rounds         = 1
+g              = 0.99
+lr             = 1e-4
+e_start        = 0.5
+e_decay        = 0.99
+e_min          = 0
+memory_size    = 65536
+batch_size     = 32
+
+fc1_size       = 256
+fc2_size       = 128
+
+
+experiment_path = f'lunarlander_results/{experiment_n}'
+if not os.path.isdir(experiment_path):
+    os.mkdir(experiment_path)
+
+results_path = f'lunarlander_results/{experiment_n}/{opt_method}'
+if not os.path.isdir(results_path):
+    os.mkdir(results_path)
+
+###############################################################################
+# NN architecture
+###############################################################################
 class Net(nn.Module):
 
     def __init__(self):
         super(Net, self).__init__()
-        self.fc1 = nn.Linear(env.observation_space.shape[0], 100)
-#         self.fc2 = nn.Linear(100, 50)
-        self.fc2 = nn.Linear(100, env.action_space.n)
+        self.fc1 = nn.Linear(env.observation_space.shape[0], fc1_size)
+        self.fc2 = nn.Linear(fc1_size, fc2_size)
+        self.fc3 = nn.Linear(fc2_size, env.action_space.n)
 
     def forward(self, x):
         x = func.relu(self.fc1(x))
-#         x = F.relu(self.fc2(x))
-        x = self.fc2(x)
+        x = func.relu(self.fc2(x))
+        x = self.fc3(x)
         return x
-
-
-###############################################################################
-# Parameters
-###############################################################################
-g = 0.97 # Reward discount factor
 
 ###############################################################################
 # Training methods
 ###############################################################################
-def my_adam_DS(max_episodes, learning_rate, batch_size, Q = Net()):
+def my_adam_DS(train_episodes, learning_rate, batch_size, Q = Net()):
     episode = 0
-    e = 1.0
-    buffer = deque(maxlen=10000)
+    e = e_start
+    buffer = deque(maxlen=memory_size)
     
-    rwds = np.zeros(max_episodes)
+    rwds = np.zeros(train_episodes)
     
     ms = [torch.zeros(w.shape) for w in Q.parameters()]
     vs = [torch.zeros(w.shape) for w in Q.parameters()]
     t  = 0
     
-    for episode in range(max_episodes):
+    for episode in range(train_episodes):
         cur_s = env.reset()
         cur_a = int(e_greedy(Q(torch.Tensor(cur_s)), e))
 
@@ -98,20 +126,18 @@ def my_adam_DS(max_episodes, learning_rate, batch_size, Q = Net()):
         e = max(0.1, 0.99 * e)
                     
     return Q, rwds
-
-
-def adam_BFF(max_episodes, learning_rate, batch_size, Q = Net()):
+def adam_BFF(train_episodes, learning_rate, batch_size, Q = Net()):
     episode = 0
     e = 1.0
     buffer = deque(maxlen=10000)
     
-    rwds = np.zeros(max_episodes)
+    rwds = np.zeros(train_episodes)
     
     ms = [torch.zeros(w.shape) for w in Q.parameters()]
     vs = [torch.zeros(w.shape) for w in Q.parameters()]
     t  = 0
     
-    for episode in range(max_episodes):
+    for episode in range(train_episodes):
         cur_s = env.reset()
         cur_a = int(e_greedy(Q(torch.Tensor(cur_s)), e))
 
@@ -151,84 +177,121 @@ def adam_BFF(max_episodes, learning_rate, batch_size, Q = Net()):
                     
     return Q, rwds
 
+def train(train_episodes, learning_rate, batch_size, Q = Net(), new_method = new_method, opt_method = opt_method):
+    memory = deque(maxlen = memory_size)
+    rwds   = np.zeros(train_episodes)
+    
+    episode = 0
+    e       = e_start
+    
+    if opt_method == 'adam':
+        ms = [torch.zeros(w.shape) for w in Q.parameters()]
+        vs = [torch.zeros(w.shape) for w in Q.parameters()]
+        t  = 0
+    
+    for episode in range(train_episodes):
+        total_rwd = 0
+        
+        cur_s    = env.reset()
+        cur_a    = int(e_greedy(Q(torch.Tensor(cur_s)), e))
+        cur_done = False
 
+        nxt_s, nxt_rwd, nxt_done, _ = env.step(cur_a)
+        nxt_a                            = int(e_greedy(Q(torch.Tensor(nxt_s)), e))
+        
+        while not cur_done:
+            total_rwd += nxt_rwd
+            
+            ftr_s, ftr_rwd, ftr_done, _ = env.step(nxt_a)
+            
+            if new_method == 'ds':
+                new_s = nxt_s
+            elif new_method == 'bff':
+                new_s = cur_s + (ftr_s - nxt_s)
+            
+            # env.render()
+            
+            experience = (cur_s, cur_a, nxt_s, new_s, nxt_rwd, nxt_done)
+            memory.append(experience)
+            
+            sample_size = min(batch_size, len(memory))
+            batch       = random.choices(memory, k = sample_size)
+            
+            if opt_method == 'adam':
+                t += 1
+                adam(batch, Q, ms, vs, t, lr = learning_rate)
+            elif opt_method == 'sgd':
+                sgd(batch, Q, learning_rate)
+            
+            cur_s    = nxt_s
+            cur_a    = nxt_a
+            cur_done = nxt_done
+            
+            nxt_s    = ftr_s
+            nxt_a    = int(e_greedy(Q(torch.Tensor(nxt_s)), e))
+            nxt_done = ftr_done
+            nxt_rwd  = ftr_rwd
+            
+            e = max(e * e_decay, e_min)
+                
+        print(f'Time for episode {episode + 1}: {total_rwd}')
+        rwds[episode] = total_rwd
+                    
+    return Q, rwds
 ###############################################################################
 # Run tests
 ###############################################################################
-torch.manual_seed(0)
-DS_Q = Net()
-BFF_Q = copy.deepcopy(DS_Q)
-
-rounds = 1
-max_episodes = 1000
-
-ds_rwds  = np.zeros((rounds, max_episodes))
-bff_rwds = np.zeros((rounds, max_episodes))
+rwds           = np.zeros((rounds, train_episodes))
+time_rwds      = np.zeros((rounds, train_episodes))
+max_positions  = np.zeros((rounds, train_episodes))
 
 start = time.time()
 for r in range(rounds):
     print(f'Running round {r}.')
-    env.seed(r+5)
-    np.random.seed(r+5)
-    random.seed(r)
-    DS_Q, ds_rwds[r, :] = my_adam_DS(max_episodes, 0.001, 50, DS_Q)
-    env.close()
-    
     env.seed(r)
-    np.random.seed(r)
     random.seed(r)
-    BFF_Q, bff_rwds[r, :] = adam_BFF(max_episodes, 0.001, 50, Q = BFF_Q)
+    np.random.seed(r)
+    torch.manual_seed(r)
+    
+    Q, rwd[r, :] = train(train_episodes, lr, batch_size)
+    torch.save(Q.state_dict(), f'lunarlander_results/{experiment_n}/{opt_method}/{new_method}_Q_{r}')
+    env.close()
+        
     print(f'Total runtime: {time.time() - start}')
 
+sem   = sem(ds_rwds, axis=0)
+mean  = np.mean(ds_rwds, axis=0)
+lo    = np.quantile(ds_rwds, 0.25, axis=0)
+mid   = np.quantile(ds_rwds, 0.5,  axis=0)
+hi    = np.quantile(ds_rwds, 0.75, axis=0)
 
-ds_sem   = sem(ds_rwds, axis=0)
-ds_mean  = np.mean(ds_rwds, axis=0)
-ds_lo    = np.quantile(ds_rwds, 0.25, axis=0)
-ds_mid   = np.quantile(ds_rwds, 0.5,  axis=0)
-ds_hi    = np.quantile(ds_rwds, 0.75, axis=0)
-
-bff_sem   = sem(bff_rwds, axis=0)
-bff_mean  = np.mean(bff_rwds, axis=0)
-bff_lo    = np.quantile(bff_rwds, 0.25, axis=0)
-bff_mid   = np.quantile(bff_rwds, 0.5,  axis=0)
-bff_hi    = np.quantile(bff_rwds, 0.75, axis=0)
-
-x = range(max_episodes)
+x = range(train_episodes)
 
 plt.style.use('ggplot')
 
 fig = plt.figure()
 ax = fig.add_subplot(111)
-
-ax.plot(x, ds_mean, label='ds')
-ax.fill_between(x, ds_mean - ds_sem, ds_mean + ds_sem, alpha = 0.3)
-
-ax.plot(x, bff_mean, label='bff')
-ax.fill_between(x, bff_mean - bff_sem, bff_mean + bff_sem, alpha = 0.3)
-
+ax.plot(x, mean, label=f'{new_method}')
+ax.fill_between(x, mean - sem, mean + sem, alpha = 0.3)
 plt.title('Average episode reward')
 plt.xlabel('Episode')
 plt.ylabel('Average reward +/- SEM')
 plt.legend()
-plt.show()
-plt.savefig(f'{env_name}_rwd.png')
+# plt.show()
+plt.savefig(f'lunarlander_results/{experiment_n}/{opt_method}/{new_method}_plot.png')
 
 
-with open(f'{env_name}_ds_rwds.csv', 'w', newline='') as csvfile:
+with open(f'lunarlander_results/{experiment_n}/{opt_method}/{new_method}_rwds.csv', 'w', newline='') as csvfile:
     writer = csv.writer(csvfile)
-    for row in ds_rwds:
+    for row in rwds:
         writer.writerow(row)
 
-with open(f'{env_name}_bff_rwds.csv', 'w', newline='') as csvfile:
+with open(f'lunarlander_results/{experiment_n}/{opt_method}/{new_method}_time_rwds.csv', 'w', newline='') as csvfile:
     writer = csv.writer(csvfile)
-    for row in bff_rwds:
+    for row in time_rwds:
         writer.writerow(row)
 
-
-# With all random seeds = 0, we get the following results:
-# DS:
-# First time reaching 200: Ep 178
-# Hitting 200 almost all of the time by Ep 214
-# BFF:
-# First time reaching 200: Ep 77 (!)
-# Hitting 200 almost all of the time by Ep 107 (!)
+with open(f'lunarlander_results/{experiment_n}/{opt_method}/{new_method}_max_dist.csv', 'w', newline='') as csvfile:
+    writer = csv.writer(csvfile)
+    for row in max_positions:
+        writer.writerow(row)
