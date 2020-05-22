@@ -23,9 +23,6 @@ import os
 env_name = "LunarLander-v2"
 env = gym.make(env_name)
 
-print("Observation space:", env.observation_space)
-print("Action space:", env.action_space)
-
 ###############################################################################
 # Parameters
 ###############################################################################
@@ -34,7 +31,7 @@ experiment_n   = 1
 new_method     = sys.argv[1]
 opt_method     = sys.argv[2]
 
-train_episodes = 2000
+train_episodes = 10
 rounds         = 1
 g              = 0.99
 lr             = 1e-4
@@ -46,6 +43,22 @@ batch_size     = 32
 
 fc1_size       = 256
 fc2_size       = 128
+
+print(f'env_name       = {env_name}')
+print(f'experiment_n   = {experiment_n}')
+print(f'new_method     = {new_method}')
+print(f'opt_method     = {opt_method}')
+print(f'train_episodes = {train_episodes}')
+print(f'rounds         = {rounds}')
+print(f'g              = {g}')
+print(f'lr             = {lr}')
+print(f'e_start        = {e_start}')
+print(f'e_decay        = {e_decay}')
+print(f'e_min          = {e_min}')
+print(f'memory_size    = {memory_size}')
+print(f'batch_size     = {batch_size}')
+print(f'fc1_size       = {fc1_size}')
+print(f'fc2_size       = {fc2_size}')
 
 
 experiment_path = f'lunarlander_results/{experiment_n}'
