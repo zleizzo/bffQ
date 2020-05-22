@@ -31,7 +31,7 @@ experiment_n   = 1
 new_method     = sys.argv[1]
 opt_method     = sys.argv[2]
 
-train_episodes = 10
+train_episodes = 2000
 rounds         = 1
 g              = 0.99
 lr             = 1e-4
