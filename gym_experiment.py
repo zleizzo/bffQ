@@ -266,7 +266,7 @@ for r in range(rounds):
     np.random.seed(r)
     torch.manual_seed(r)
     
-    Q, rwd[r, :] = train(train_episodes, lr, batch_size)
+    Q, rwds[r, :] = train(train_episodes, lr, batch_size)
     torch.save(Q.state_dict(), f'lunarlander_results/{experiment_n}/{opt_method}/{new_method}_Q_{r}')
     env.close()
         
