@@ -272,11 +272,11 @@ for r in range(rounds):
         
     print(f'Total runtime: {time.time() - start}')
 
-sem   = sem(ds_rwds, axis=0)
-mean  = np.mean(ds_rwds, axis=0)
-lo    = np.quantile(ds_rwds, 0.25, axis=0)
-mid   = np.quantile(ds_rwds, 0.5,  axis=0)
-hi    = np.quantile(ds_rwds, 0.75, axis=0)
+sem   = sem(rwds, axis=0)
+mean  = np.mean(rwds, axis=0)
+lo    = np.quantile(rwds, 0.25, axis=0)
+mid   = np.quantile(rwds, 0.5,  axis=0)
+hi    = np.quantile(rwds, 0.75, axis=0)
 
 x = range(train_episodes)
 
@@ -297,14 +297,4 @@ plt.savefig(f'lunarlander_results/{experiment_n}/{opt_method}/{new_method}_plot.
 with open(f'lunarlander_results/{experiment_n}/{opt_method}/{new_method}_rwds.csv', 'w', newline='') as csvfile:
     writer = csv.writer(csvfile)
     for row in rwds:
-        writer.writerow(row)
-
-with open(f'lunarlander_results/{experiment_n}/{opt_method}/{new_method}_time_rwds.csv', 'w', newline='') as csvfile:
-    writer = csv.writer(csvfile)
-    for row in time_rwds:
-        writer.writerow(row)
-
-with open(f'lunarlander_results/{experiment_n}/{opt_method}/{new_method}_max_dist.csv', 'w', newline='') as csvfile:
-    writer = csv.writer(csvfile)
-    for row in max_positions:
         writer.writerow(row)
