@@ -26,20 +26,26 @@ env = gym.make(env_name)
 ###############################################################################
 # Parameters
 ###############################################################################
-experiment_n   = 1
+experiment_n   = 2
 
 new_method     = sys.argv[1]
 opt_method     = sys.argv[2]
+# new_method     = 'ds'
+# opt_method     = 'adam'
 
-train_episodes = 2000
+train_episodes = 1000
 rounds         = 1
 g              = 0.99
 lr             = 1e-4
+beta1          = 0.9
+beta2          = 0.98
+
 e_start        = 0.5
 e_decay        = 0.99
 e_min          = 0
 memory_size    = 65536
 batch_size     = 32
+training_start = 64
 
 fc1_size       = 256
 fc2_size       = 128
@@ -227,14 +233,15 @@ def train(train_episodes, learning_rate, batch_size, Q = Net(), new_method = new
             experience = (cur_s, cur_a, nxt_s, new_s, nxt_rwd, nxt_done)
             memory.append(experience)
             
-            sample_size = min(batch_size, len(memory))
-            batch       = random.choices(memory, k = sample_size)
-            
-            if opt_method == 'adam':
-                t += 1
-                adam(batch, Q, ms, vs, t, lr = learning_rate)
-            elif opt_method == 'sgd':
-                sgd(batch, Q, learning_rate)
+            if len(memory) >= training_start:
+                sample_size = min(batch_size, len(memory))
+                batch       = random.choices(memory, k = sample_size)
+                
+                if opt_method == 'adam':
+                    t += 1
+                    adam(batch, Q, ms, vs, t, lr = learning_rate, beta1 = beta1, beta2 = beta2)
+                elif opt_method == 'sgd':
+                    sgd(batch, Q, learning_rate)
             
             cur_s    = nxt_s
             cur_a    = nxt_a
