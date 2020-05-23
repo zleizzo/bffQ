@@ -25,16 +25,16 @@ print("Action space:", env.action_space)
 ###############################################################################
 # Parameters
 ###############################################################################
-# new_method = sys.argv[1] # {ds, bff, pd}
-# opt_method = sys.argv[2] # {sgd, adam}
-# lr_decay   = sys.argv[3] # {f, d}
-# lr_choice  = sys.argv[4] # {0, 1, 2}
+new_method = sys.argv[1] # {ds, bff, pd}
+opt_method = sys.argv[2] # {sgd, adam}
+lr_decay   = sys.argv[3] # {f, d}
+lr_choice  = sys.argv[4] # {0, 1, 2}
 # n          = sys.argv[5] # {0, ..., 9}
 
-new_method = 'bff'
-opt_method = 'adam'
-lr_decay   = 'f'
-lr_choice  = '1'
+# new_method = 'bff'
+# opt_method = 'adam'
+# lr_decay   = 'f'
+# lr_choice  = '1'
 
 lr_choice = int(lr_choice)
 if lr_decay == 'f':
