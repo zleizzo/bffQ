@@ -290,9 +290,9 @@ def PD(T, batch_size, beta0, eta0, e = 0.1, Q = Net(), y = Net(), trueQgraph = N
 ###############################################################################
 # Define hyperparameters.
 experiment_n = int(sys.argv[1])
-T          = 100 # Length of training trajectory.
-beta0      = 0.5
-eta0       = 0.5     # Initial vals for beta and eta.
+T          = 1000000 # Length of training trajectory.
+beta0      = 0.1
+eta0       = 0.1     # Initial vals for beta and eta.
 batch_size = 50      # Batch size.
 e          = 0.5     # Epsilon for epsilon-greedy choice. Note that this is not
                      # the same as the epsilon in the Markov chain dynamics.
