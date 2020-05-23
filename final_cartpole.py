@@ -29,8 +29,6 @@ new_method = sys.argv[1] # {ds, bff, pd}
 opt_method = sys.argv[2] # {sgd, adam}
 lr_decay   = sys.argv[3] # {f, d}
 lr_choice  = sys.argv[4] # {0, 1, 2}
-train_episodes = 50
-batch_size = 50
 # n          = sys.argv[5] # {0, ..., 9}
 
 lr_choice = int(lr_choice)
@@ -40,7 +38,7 @@ elif lr_decay == 'd':
     lrs = [1e-1, 1e-2, 1e-3]
 lr = lrs[lr_choice]
 
-train_episodes = 10
+train_episodes = 1000
 g              = 0.97 # Reward discount factor
 batch_size     = 50
 
