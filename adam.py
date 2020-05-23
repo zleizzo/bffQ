@@ -131,18 +131,17 @@ def compute_grad_y(cur_s, cur_a, y):
     cur_s = torch.Tensor(cur_s)
     y.zero_grad()
     computation = y(cur_s)[cur_a]
-    y.backward()
+    computation.backward()
     return [w.grad.data for w in y.parameters()]
 
 
 def compute_y_step(cur_s, cur_a, nxt_s, rwd, done, Q, y):
     grads  = [torch.zeros(w.shape) for w in y.parameters()]
     grad_y = compute_grad_y(cur_s, cur_a, y)
-    
-    with torch.no_grad():
-        for i in range(len(grads)):
-            delta    = compute_j(cur_s, cur_a, nxt_s, rwd, done, Q)
-            grads[i] = grad_y[i].mul(delta - y(torch.Tensor(cur_s))[cur_a])
+
+    for i in range(len(grads)):
+        delta    = compute_j(cur_s, cur_a, nxt_s, rwd, done, Q)
+        grads[i] = grad_y[i].mul(delta - y(torch.Tensor(cur_s))[cur_a])
     
     return grads
 
@@ -154,9 +153,8 @@ def compute_Q_step(cur_s, cur_a, nxt_s, rwd, done, Q, y):
     grads = [torch.zeros(w.shape) for w in y.parameters()]
     grad_j = compute_grad_j(cur_s, cur_a, nxt_s, rwd, done, Q)
     
-    with torch.no_grad():
-        for i in range(len(grads)):
-            grads[i] = grad_j[i].mul(y(torch.Tensor(cur_s))[cur_a])
+    for i in range(len(grads)):
+        grads[i] = grad_j[i].mul(y(torch.Tensor(cur_s))[cur_a])
     
     return grads
 
@@ -165,17 +163,16 @@ def compute_batch_y_step(batch, Q, y):
     grads = [torch.zeros(w.shape) for w in Q.parameters()]
     batch_size = len(batch)
     
-    with torch.no_grad():
-        for experience in batch:
-            cur_s = experience[0]
-            cur_a = experience[1]
-            nxt_s = experience[2]
-            rwd   = experience[4]
-            done  = experience[5]
-            
-            minibatch_grads = compute_y_step(cur_s, cur_a, nxt_s, rwd, done, Q, y)
-            for l in range(len(grads)):
-                grads[l] += minibatch_grads[l] / batch_size
+    for experience in batch:
+        cur_s = experience[0]
+        cur_a = experience[1]
+        nxt_s = experience[2]
+        rwd   = experience[4]
+        done  = experience[5]
+        
+        minibatch_grads = compute_y_step(cur_s, cur_a, nxt_s, rwd, done, Q, y)
+        for l in range(len(grads)):
+            grads[l] += minibatch_grads[l] / batch_size
         
     return grads
 
@@ -185,18 +182,17 @@ def compute_batch_Q_step(batch, Q, y):
     grads = [torch.zeros(w.shape) for w in Q.parameters()]
     batch_size = len(batch)
     
-    with torch.no_grad():
-        for experience in batch:
-            cur_s = experience[0]
-            cur_a = experience[1]
-            nxt_s = experience[2]
-            new_s = experience[3]
-            rwd   = experience[4]
-            done  = experience[5]
-            
-            minibatch_grads = compute_Q_step(cur_s, cur_a, nxt_s, rwd, done, Q, y)
-            for l in range(len(grads)):
-                grads[l] += minibatch_grads[l] / batch_size
+    for experience in batch:
+        cur_s = experience[0]
+        cur_a = experience[1]
+        nxt_s = experience[2]
+        new_s = experience[3]
+        rwd   = experience[4]
+        done  = experience[5]
+        
+        minibatch_grads = compute_Q_step(cur_s, cur_a, nxt_s, rwd, done, Q, y)
+        for l in range(len(grads)):
+            grads[l] += minibatch_grads[l] / batch_size
         
     return grads
 
