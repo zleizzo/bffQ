@@ -292,7 +292,7 @@ def PD(T, batch_size, beta0, eta0, e = 0.1, Q = Net(), y = Net(), trueQgraph = N
 ###############################################################################
 # Define hyperparameters.
 experiment_n = int(sys.argv[1])
-T            = 100 # Length of training trajectory.
+T            = 1000000 # Length of training trajectory.
 beta0        = 0.5
 eta0         = 0.5     # Initial vals for beta and eta.
 batch_size   = 50      # Batch size.
@@ -382,7 +382,7 @@ plt.figure()
 plt.plot(log_e_PD,  label='pd',  color='c')
 plt.title('Relative error decay, log scale')
 plt.legend()
-plt.savefig(f'plots/nn_error_eval_{experiment_n}.png')
+plt.savefig(f'plots/nn_error_pd_eval_{experiment_n}.png')
 
 # Save Q data to csv files for easy re-plotting.
 # with open('csvs/control/q_mc.csv', 'w', newline='') as csvfile:
