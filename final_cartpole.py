@@ -25,11 +25,16 @@ print("Action space:", env.action_space)
 ###############################################################################
 # Parameters
 ###############################################################################
-new_method = sys.argv[1] # {ds, bff, pd}
-opt_method = sys.argv[2] # {sgd, adam}
-lr_decay   = sys.argv[3] # {f, d}
-lr_choice  = sys.argv[4] # {0, 1, 2}
+# new_method = sys.argv[1] # {ds, bff, pd}
+# opt_method = sys.argv[2] # {sgd, adam}
+# lr_decay   = sys.argv[3] # {f, d}
+# lr_choice  = sys.argv[4] # {0, 1, 2}
 # n          = sys.argv[5] # {0, ..., 9}
+
+new_method = 'bff'
+opt_method = 'adam'
+lr_decay   = 'f'
+lr_choice  = '1'
 
 lr_choice = int(lr_choice)
 if lr_decay == 'f':
@@ -82,8 +87,8 @@ def train(new_method = new_method, opt_method = opt_method, lr = lr, lr_decay = 
             sample_size = min(batch_size, len(buffer))
             batch       = random.choices(buffer, k=sample_size)
             
+            t += 1
             if lr_decay == 'd':
-                t += 1
                 alpha = lr * (t ** (-0.75))
                 beta  = lr * (t ** (-0.75))
                 eta   = lr * (t ** (-0.5))
