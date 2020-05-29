@@ -29,7 +29,7 @@ new_method = sys.argv[1] # {ds, bff, pd}
 opt_method = sys.argv[2] # {sgd, adam}
 lr_decay   = sys.argv[3] # {f, d}
 lr_choice  = sys.argv[4] # {0, 1, 2}
-n          = sys.argv[5] # {0, ..., 9}
+n          = int(sys.argv[5]) # {0, ..., 9}
 
 # new_method = 'bff'
 # opt_method = 'adam'
