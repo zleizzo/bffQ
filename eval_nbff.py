@@ -216,7 +216,7 @@ def nBFF(n, T, learning_rate, batch_size, Q = Net(), trueQgraph = None):
 np.random.seed(0)
 
 # Define hyperparameters.
-T             = 100000 # Length of training trajectory.
+T             = 1000000 # Length of training trajectory.
 learning_rate = 0.1     # Learning rate.
 batch_size    = 50      # Batch size.
 n             = int(sys.argv[1])
