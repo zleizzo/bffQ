@@ -219,7 +219,7 @@ np.random.seed(0)
 T             = 100000 # Length of training trajectory.
 learning_rate = 0.1     # Learning rate.
 batch_size    = 50      # Batch size.
-n             = sys.argv[1]
+n             = int(sys.argv[1])
 
 # First, learn true optimal Q based on a longer trajectory.
 path = 'csvs/nn_eval/'
