@@ -30,6 +30,7 @@ lr_decay   = 'f'
 lr_choice  = '1'
 # n          = 1
 n = int(sys.argv[1])
+exp_n = int(sys.argv[2])
 
 lr_choice = int(lr_choice)
 if lr_decay == 'f':
@@ -112,13 +113,13 @@ def train(n = n, opt_method = opt_method, lr = lr, lr_decay = lr_decay, train_ep
 ###############################################################################
 start = time.time()
 
-env.seed(0)
-random.seed(0)
-np.random.seed(0)
-torch.manual_seed(0)
+env.seed(exp_n)
+random.seed(exp_n)
+np.random.seed(exp_n)
+torch.manual_seed(exp_n)
 
 Q, rwds = train()
-torch.save(Q.state_dict(), f'cartpole/{n}bff_{opt_method}_q')
+torch.save(Q.state_dict(), f'cartpole/{n}bff_{opt_method}_q_{exp_n}')
 env.close()
     
 print(f'Total runtime: {time.time() - start}')
@@ -128,11 +129,11 @@ plt.style.use('ggplot')
 fig = plt.figure()
 ax = fig.add_subplot(111)
 ax.plot(rwds)
-plt.title(f'Reward vs. episode, {n}bff_{opt_method}')
+plt.title(f'Reward vs. episode, {n}bff_{opt_method}_{exp_n}')
 plt.xlabel('Episode')
 plt.ylabel('Reward')
-plt.savefig(f'cartpole/{n}bff_{opt_method}_plot.png')
+plt.savefig(f'cartpole/{n}bff_{opt_method}_{exp_n}_plot.png')
 
-with open(f'cartpole/{n}bff_{opt_method}_rwd.csv', 'w', newline='') as csvfile:
+with open(f'cartpole/{n}bff_{opt_method}_{exp_n}_rwd.csv', 'w', newline='') as csvfile:
     writer = csv.writer(csvfile)
     writer.writerow(rwds)
