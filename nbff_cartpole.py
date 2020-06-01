@@ -29,8 +29,10 @@ opt_method = 'adam'
 lr_decay   = 'f'
 lr_choice  = '1'
 # n          = 1
-n = int(sys.argv[1])
-exp_n = int(sys.argv[2])
+# n = int(sys.argv[1])
+# exp_n = int(sys.argv[2])
+n = 2
+exp_n = 0
 
 lr_choice = int(lr_choice)
 if lr_decay == 'f':
@@ -39,7 +41,7 @@ elif lr_decay == 'd':
     lrs = [0.5, 1e-1, 1e-2, 1e-3]
 lr = lrs[lr_choice]
 
-train_episodes = 200
+train_episodes = 100
 g              = 0.97 # Reward discount factor
 batch_size     = 50
 
@@ -75,7 +77,6 @@ def train(n = n, opt_method = opt_method, lr = lr, lr_decay = lr_decay, train_ep
             nxt_a                       = int(e_greedy(Q(torch.Tensor(nxt_s)), e))
             
             nstep_buffer.append((nxt_s, nxt_a, nxt_rwd, nxt_done))
-            total_rwd += nxt_rwd
         
         done = False
         while not done:
@@ -100,7 +101,7 @@ def train(n = n, opt_method = opt_method, lr = lr, lr_decay = lr_decay, train_ep
             nxt_a                       = int(e_greedy(Q(torch.Tensor(nxt_s)), e))
             
             nstep_buffer.append((nxt_s, nxt_a, nxt_rwd, nxt_done))
-            total_rwd += nxt_rwd
+            total_rwd += nstep_buffer[0][2]
             done       = nstep_buffer[0][3]
                 
         print(f'Total reward for episode {episode + 1}: {total_rwd}')
