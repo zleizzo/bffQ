@@ -28,11 +28,10 @@ print("Action space:", env.action_space)
 opt_method = 'adam'
 lr_decay   = 'f'
 lr_choice  = '1'
-# n          = 1
-# n = int(sys.argv[1])
-# exp_n = int(sys.argv[2])
-n = 2
-exp_n = 0
+n = int(sys.argv[1])
+exp_n = int(sys.argv[2])
+# n = 2
+# exp_n = 0
 
 lr_choice = int(lr_choice)
 if lr_decay == 'f':
