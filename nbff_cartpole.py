@@ -41,7 +41,7 @@ elif lr_decay == 'd':
     lrs = [0.5, 1e-1, 1e-2, 1e-3]
 lr = lrs[lr_choice]
 
-train_episodes = 100
+train_episodes = 200
 g              = 0.97 # Reward discount factor
 batch_size     = 50
 
