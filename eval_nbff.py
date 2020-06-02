@@ -190,7 +190,7 @@ def nBFF(n, T, learning_rate, batch_size, Q = Net(), trueQgraph = None):
                 
                 grad_j = compute_grad_j(cur_s, cur_a, new_s, Q)
                 for l in range(len(grad_j)):
-                    sum_grad_j[l] += grad_j[l] / n
+                    sum_grad_j[l] += grad_j[l]
             
             for l in range(len(grads)):
                 grads[l] += (j / (batch_size * n)) * sum_grad_j[l]
@@ -214,12 +214,14 @@ def nBFF(n, T, learning_rate, batch_size, Q = Net(), trueQgraph = None):
 # EXPERIMENTS
 ###############################################################################
 np.random.seed(0)
+torch.manual_seed(0)
 
 # Define hyperparameters.
 T             = 1000000 # Length of training trajectory.
 learning_rate = 0.1     # Learning rate.
 batch_size    = 50      # Batch size.
 n             = int(sys.argv[1])
+# n = 3
 
 # First, learn true optimal Q based on a longer trajectory.
 path = 'csvs/nn_eval/'
@@ -257,7 +259,7 @@ plt.plot(x, true[:, 1], label='true', color='m')
 plt.plot(x, nbff[:, 1], label=f'{n}bff', color='g')
 plt.title('Q, action 2')
 plt.legend()
-# plt.savefig('plots/nn_q_mc_eval.png')
+plt.savefig(f'plots/q_{n}bff.png')
 
 
 # Compute relative errors for each method.

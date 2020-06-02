@@ -189,7 +189,7 @@ def nBFF(n, T, learning_rate, batch_size, e = 0.5, Q = Net(), trueQgraph = None)
                 
                 grad_j = compute_grad_j(cur_s, cur_a, new_s, Q)
                 for l in range(len(grad_j)):
-                    sum_grad_j[l] += grad_j[l] / n
+                    sum_grad_j[l] += grad_j[l]
             
             for l in range(len(grads)):
                 grads[l] += (j / (batch_size * n)) * sum_grad_j[l]
