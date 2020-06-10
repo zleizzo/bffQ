@@ -120,7 +120,8 @@ def UB(T, trueQ = None, Q_init = np.zeros((N, 2)), batch_size = 1, lr = 0.1, P =
         for i in range(batch_size):
             # Move to next point in the trajectory and select an action from the fixed policy.
             cur_s = nxt_s
-            cur_a = policy(cur_s)
+            # cur_a = policy(cur_s)
+            cur_a = np.random.randint(2)
             
             # Generate the next step in the trajectory based on our current state and action.
             nxt_s = transition(cur_s, cur_a)
@@ -266,78 +267,128 @@ def nBFF(n, T, trueQ = None, Q_init = np.zeros((N, 2)), batch_size = 50, lr = 0.
     return Q, errors
 
 
+def monte_carlo(s, a, trueQ, tol = 0.01, reps = 10):
+    """
+    Computes a Monte Carlo estimate for the Q function based on the fixed policy pi.
+    
+    s, a  = Starting state, action pair.
+    tol   = For each trial, we run the trajectory until the total discounted future
+            reward can be no more than tol.
+    reps  = Number of trials used to estimate Q(s, a).
+    """
+    # T is defined so that the total reward incurred from time T to infinity is
+    # at most tol.
+    R_max = 2 # Max single-step reward.
+    T = int(np.log((1 - g) * tol / R_max) / np.log(g)) + 1
+    
+    total = 0
+    for r in range(reps):
+        # print(f'Running trial {r}')
+        # Transition, then compute reward.
+        s_cur = s
+        a_cur = a
+        discount = 1
+        for t in range(1, T):
+            s_cur = transition(s_cur, a_cur)
+            total += reward(s_cur) * discount
+            a_cur = np.argmax(trueQ[s_cur, :])
+            discount *= g
+            
+    empirical_avg = total / reps
+    return empirical_avg
+
+
+def MC(trueQ, tol = 0.001, reps = 10000):
+    """
+    Computes a Monte Carlo estimate for the graph of Q based on the fixed policy
+    pi by running the monte_carlo method above on a mesh of points in [0, 2pi).
+    """
+    Q = np.zeros((N, 2))
+    for s in range(N):
+        for a in range(2):
+            print(f'Computing Q({s}, {a})...')
+            Q[s, a] = monte_carlo(s, a, trueQ, tol, reps)
+    return Q
+
 ###############################################################################
 # Run experiment
 ###############################################################################
 np.random.seed(0)
 
-T          = 100000000
-lr         = 0.1
-batch_size = 10000
-# method     = sys.argv[1]
-# if method == 'bff':
-    # n = int(sys.argv[2])
-
-# path = 'csvs/tab_ctrl/'
-# true = np.zeros((N, 2))
-# with open(path + 'q_true.csv', newline='') as csvfile:
-#     reader = csv.reader(csvfile, delimiter=',')
-#     for row, i in zip(reader, range(50)):
-#         true[i, :] = row
-
-trueQ, _ = UB(T, batch_size = batch_size, lr = lr)
-
-with open('csvs/tab_ctrl/q_true.csv', 'w', newline='') as csvfile:
-    writer = csv.writer(csvfile)
-    for row in trueQ:
-        writer.writerow(row)
-
-# if method == 'ub':
-#     Q, err = UB(T, trueQ = true, batch_size = batch_size, lr = lr)
-# elif method == 'ds':
-#     Q, err = DS(T, trueQ = true, batch_size = batch_size, lr = lr)
-# elif method == 'bff':
-#     Q, err = nBFF(n, T, trueQ = true, batch_size = batch_size, lr = lr)
+T          = 10000000
+lr         = 0.5
+batch_size = 100
+method     = sys.argv[1]
+if method == 'bff':
+    n = int(sys.argv[2])
 
 
-# # Compute relative errors for each method.
-# rel_err = [e / err[0] for e in err]
+path = 'csvs/tab_ctrl/'
+true = np.zeros((N, 2))
+with open(path + 'q_true.csv', newline='') as csvfile:
+    reader = csv.reader(csvfile, delimiter=',')
+    for row, i in zip(reader, range(50)):
+        true[i, :] = row
 
-# # Compute log relative errors for each method.
-# log_err = [np.log10(e) for e in rel_err]
+# trueQ, _ = UB(T, batch_size = batch_size, lr = lr, Q_init = true)
 
-# # Plot log relative error for each method.
-# plt.figure()
-# plt.subplot(1,3,1)
-# plt.plot(log_err, label=f'{method}', color='g')
-# plt.title('Relative error decay, log scale')
-# plt.legend()
+# with open('csvs/tab_ctrl/q_true3.csv', 'w', newline='') as csvfile:
+#     writer = csv.writer(csvfile)
+#     for row in trueQ:
+#         writer.writerow(row)
 
-# x = range(N)
-# # Graph Q(s, 0) vs. s.
-# plt.subplot(1,3,2)
-# plt.plot(x, true[:, 0], label='true', color='m')
-# plt.plot(x, Q[:, 0], label=f'{method}', color='g')
-# plt.title('Q, action 1')
-# plt.legend()
+if method == 'ub':
+    Q, err = UB(T, trueQ = true, batch_size = batch_size, lr = lr)
+elif method == 'ds':
+    Q, err = DS(T, trueQ = true, batch_size = batch_size, lr = lr)
+elif method == 'bff':
+    Q, err = nBFF(n, T, trueQ = true, batch_size = batch_size, lr = lr)
 
-# # Graph Q(s, 1) vs. s.
-# plt.subplot(1,3,3)
-# plt.plot(x, true[:, 1], label='true', color='m')
-# plt.plot(x, Q[:, 1], label=f'{method}', color='g')
-# plt.title('Q, action 2')
-# plt.legend()
-
-# if method == 'bff':
-#     method = str(n) + 'bff'
-# plt.savefig(f'plots/tab_ctrl/{method}.png')
-
-
-# with open(f'csvs/tab_ctrl/q_{method}.csv', 'w', newline='') as csvfile:
+# Q = MC(trueQ)
+# with open('csvs/tab_ctrl/q_mc.csv', 'w', newline='') as csvfile:
 #     writer = csv.writer(csvfile)
 #     for row in Q:
 #         writer.writerow(row)
 
-# with open(f'csvs/tab_ctrl/error_{method}.csv', 'w', newline='') as csvfile:
-#     writer = csv.writer(csvfile)
-#     writer.writerow(log_err)
+
+# Compute relative errors for each method.
+rel_err = [e / err[0] for e in err]
+
+# Compute log relative errors for each method.
+log_err = [np.log10(e) for e in rel_err]
+
+# Plot log relative error for each method.
+plt.figure()
+plt.subplot(1,3,1)
+plt.plot(log_err, label=f'{method}', color='g')
+plt.title('Relative error decay, log scale')
+plt.legend()
+
+x = range(N)
+# Graph Q(s, 0) vs. s.
+plt.subplot(1,3,2)
+plt.plot(x, true[:, 0], label='true', color='m')
+plt.plot(x, Q[:, 0], label=f'{method}', color='g')
+plt.title('Q, action 1')
+plt.legend()
+
+# Graph Q(s, 1) vs. s.
+plt.subplot(1,3,3)
+plt.plot(x, true[:, 1], label='true', color='m')
+plt.plot(x, Q[:, 1], label=f'{method}', color='g')
+plt.title('Q, action 2')
+plt.legend()
+
+if method == 'bff':
+    method = str(n) + 'bff'
+plt.savefig(f'plots/tab_ctrl/{method}.png')
+
+
+with open(f'csvs/tab_ctrl/q_{method}.csv', 'w', newline='') as csvfile:
+    writer = csv.writer(csvfile)
+    for row in Q:
+        writer.writerow(row)
+
+with open(f'csvs/tab_ctrl/error_{method}.csv', 'w', newline='') as csvfile:
+    writer = csv.writer(csvfile)
+    writer.writerow(log_err)
