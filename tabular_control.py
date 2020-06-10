@@ -274,64 +274,65 @@ np.random.seed(0)
 T          = 100000
 lr         = 0.5
 batch_size = 1000
-# n          = int(sys.argv[1])
+method     = sys.argv[1]
+if method == 'bff':
+    n = int(sys.argv[2])
+
+path = 'csvs/tab_ctrl/'
+true = np.zeros((N, 2))
+with open(path + 'q_true.csv', newline='') as csvfile:
+    reader = csv.reader(csvfile, delimiter=',')
+    for row, i in zip(reader, range(50)):
+        true[i, :] = row
+
+# trueQ, _ = UB(T, batch_size = batch_size, lr = lr)
+
+if method == 'ub':
+    Q, err = UB(T, trueQ = true, batch_size = batch_size, lr = lr)
+elif method == 'ds':
+    Q, err = DS(T, trueQ = true, batch_size = batch_size, lr = lr)
+elif method == 'bff':
+    Q, err = nBFF(n, T, trueQ = true, batch_size = batch_size, lr = lr)
 
 
-# path = 'csvs/tab_ctrl/'
-# true = np.zeros((N, 2))
-# with open(path + 'q_true.csv', newline='') as csvfile:
-#     reader = csv.reader(csvfile, delimiter=',')
-#     for row, i in zip(reader, range(50)):
-#         true[i, :] = row
+# Compute relative errors for each method.
+rel_err = [e / err[0] for e in err]
 
-trueQ, _ = UB(T, batch_size = batch_size, lr = lr)
+# Compute log relative errors for each method.
+log_err = [np.log10(e) for e in rel_err]
 
-# Train Q according to each other the methods. Get values for Q as well as
-# error decay during training. Also compute a Monte Carlo estimate for Q.
-# Q_nBFF, e_nBFF = nBFF(n, T, trueQ = true, Q_init = np.zeros((N, 2)), batch_size = batch_size, lr = lr)
+# Plot log relative error for each method.
+plt.figure()
+plt.subplot(1,3,1)
+plt.plot(log_err, label=f'{method}', color='g')
+plt.title('Relative error decay, log scale')
+plt.legend()
 
-# Compute the graphs of each of the learned Q functions.
-# The Monte Carlo Q is already given as a graph rather than a function; we are
-# just keeping variable names consistent across methods.
-# nbff = Q_nBFF
+x = range(N)
+# Graph Q(s, 0) vs. s.
+plt.subplot(1,3,2)
+plt.plot(x, true[:, 0], label='true', color='m')
+plt.plot(x, Q[:, 0], label=f'{method}', color='g')
+plt.title('Q, action 1')
+plt.legend()
 
-# x = range(N)
-# # Graph Q(s, 0) vs. s.
-# plt.figure()
-# plt.subplot(1,2,1)
-# plt.plot(x, true[:, 0], label='true', color='m')
-# plt.plot(x, nbff[:, 0], label=f'{n}bff', color='g')
-# plt.title('Q, action 1')
-# plt.legend()
+# Graph Q(s, 1) vs. s.
+plt.subplot(1,3,3)
+plt.plot(x, true[:, 1], label='true', color='m')
+plt.plot(x, Q[:, 1], label=f'{method}', color='g')
+plt.title('Q, action 2')
+plt.legend()
 
-# # Graph Q(s, 1) vs. s.
-# plt.subplot(1,2,2)
-# plt.plot(x, true[:, 1], label='true', color='m')
-# plt.plot(x, nbff[:, 1], label=f'{n}bff', color='g')
-# plt.title('Q, action 2')
-# plt.legend()
-# plt.savefig(f'plots/tab_q_{n}bff.png')
+if method == 'bff':
+    method = str(n) + 'bff'
+plt.savefig(f'plots/tab_ctrl/{method}.png')
 
 
-# # Compute relative errors for each method.
-# rel_e_nBFF = [err / e_nBFF[0] for err in e_nBFF]
-
-# # Compute log relative errors for each method.
-# log_e_nBFF = [np.log10(err) for err in rel_e_nBFF]
-
-# # Plot log relative error for each method.
-# plt.figure()
-# plt.plot(log_e_nBFF, label=f'{n}bff', color='g')
-# plt.title('Relative error decay, log scale')
-# plt.legend()
-# plt.savefig(f'plots/tab_error_{n}bff.png')
-
-
-with open(f'csvs/tab_ctrl/q_true.csv', 'w', newline='') as csvfile:
+with open(f'csvs/tab_ctrl/q_{method}.csv', 'w', newline='') as csvfile:
     writer = csv.writer(csvfile)
-    for row in trueQ:
+    for row in Q:
         writer.writerow(row)
 
-# with open(f'csvs/tab_eval/error_{n}bff.csv', 'w', newline='') as csvfile:
-#     writer = csv.writer(csvfile)
-#     writer.writerow(log_e_nBFF)
+with open(f'csvs/tab_ctrl/error_{method}.csv', 'w', newline='') as csvfile:
+    writer = csv.writer(csvfile)
+    writer.writerow(log_err)
