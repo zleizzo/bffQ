@@ -4,7 +4,8 @@ import time
 import torch
 import torch.nn as nn
 import csv
-
+import sys
+from collections import deque
 
 class Net(nn.Module):
     """
@@ -67,7 +68,7 @@ def map_to_input(s):
     We map each s in [0, 2pi) to (cos(s), sin(s)) and use this as input.
     See Section 4.2.1 in the paper.
     """
-    return torch.tensor([np.cos(s), np.sin(s)])
+    return torch.tensor([np.cos(s), np.sin(s)], dtype=torch.float)
 
 
 def policy_vec(s):
@@ -378,64 +379,152 @@ def MC(tol = 0.001, reps = 1000, divisions = 50):
             Q[i, a] = monte_carlo(s, a, tol, reps)
     return Q
 
+
+def nBFF(n, T, learning_rate, batch_size, Q = Net(), trueQgraph = None):
+    """
+    SGD with the BFF approximation.
+    
+    For the previous two algorithms, we only needed to keep track of the current
+    time step and one time step in the future (cur_s and nxt_s, respectively).
+    For BFF, we need to keep track of one additional time step. This is the main
+    distinction between this method and the other two; the rest is identical
+    except for the definition of s_new.
+    """
+    start = time.time()
+    
+    errors = np.zeros(int(T / batch_size))
+    
+    x = np.linspace(0, 2 * np.pi)
+    z = torch.stack([map_to_input(s) for s in x])
+    
+    print('Beginning nBFF...')
+    experience_buffer = deque(maxlen = n + 2)
+    
+    cur_s = np.random.rand() * 2 * np.pi
+    cur_a = policy(cur_s)
+    experience_buffer.append((cur_s, cur_a))
+    
+    for i in range(n + 1):
+        cur_s = experience_buffer[i][0]
+        cur_a = experience_buffer[i][1]
+        
+        nxt_s = transition(cur_s, cur_a)
+        nxt_a = policy(nxt_s)
+        experience_buffer.append((nxt_s, nxt_a))
+    
+    for k in range(int(T / batch_size)):
+        if k % 100 == 0 and k > 0:
+            print(f'ETA: {round(((time.time() - start) * (int(T / batch_size) - k) / k) / 60, 2)} min')
+        
+        grads = [torch.zeros(w.shape) for w in Q.parameters()]
+        for i in range(batch_size):
+            cur_s = experience_buffer[0][0]
+            cur_a = experience_buffer[0][1]
+            
+            nxt_s = experience_buffer[1][0]
+            nxt_a = experience_buffer[1][1]
+            
+            j          = compute_j(cur_s, cur_a, nxt_s, Q)
+            sum_grad_j = [torch.zeros(w.shape) for w in Q.parameters()]
+            for m in range(n):
+                ds    = experience_buffer[m + 2][0] - experience_buffer[m + 1][0] # Compute \Delta s
+                new_s = cur_s + ds
+                
+                grad_j = compute_grad_j(cur_s, cur_a, new_s, Q)
+                for l in range(len(grad_j)):
+                    sum_grad_j[l] += grad_j[l]
+            
+            for l in range(len(grads)):
+                grads[l] += (j / (batch_size * n)) * sum_grad_j[l]
+            
+            ftr_s = transition(experience_buffer[-1][0], experience_buffer[-1][1])
+            ftr_a = policy(ftr_s)
+            experience_buffer.append((ftr_s, ftr_a))
+                
+        for w, grad in zip(Q.parameters(), grads):
+            w.data.sub_(learning_rate * grad)
+            
+        if trueQgraph is not None:
+            with torch.no_grad():
+                Qgraph = Q(z)
+                errors[k] = L2_error(Qgraph, trueQgraph)
+    
+    return Q, errors
+
 ###############################################################################
 # EXPERIMENTS
 ###############################################################################
-np.random.seed(0)
+seed = int(sys.argv[1])
+# seed = 0
+
+np.random.seed(seed)
+torch.manual_seed(seed)
 
 # Define hyperparameters.
 T             = 1000000 # Length of training trajectory.
-learning_rate = 0.1   # Learning rate.
+learning_rate = 0.1    # Learning rate.
 batch_size    = 50     # Batch size.
 
-# First, learn true optimal Q based on a longer trajectory.
-trueQ, _ = UB(3 * T, learning_rate, batch_size, Net())
+# # If running for the first time, learn true optimal Q based on a longer trajectory.
+# trueQ, _ = UB(3 * T, learning_rate, batch_size, Net())
+
+# # Compute the graph of trueQ.
+# trueQgraph = trueQ(z).detach()
+
+# If we've already run this, just import true Q.
+path = 'csvs/nn_eval/'
+true = np.zeros((50, 2))
+with open(path + 'q_true.csv', newline='') as csvfile:
+    reader = csv.reader(csvfile, delimiter=',')
+    for row, i in zip(reader, range(50)):
+        true[i, :] = row
 
 # Define grid of points on which to evaluate each of the Q functions we learn
 # so that we can graph them.
 x = np.linspace(0, 2 * np.pi)
 z = torch.stack([map_to_input(s) for s in x])
 
-# Compute the graph of trueQ.
-trueQgraph = trueQ(z).detach()
+trueQgraph = true
 
 # Train Q according to each other the methods. Get values for Q as well as
 # error decay during training. Also compute a Monte Carlo estimate for Q.
 Q_UB,  e_UB  = UB(T, learning_rate, batch_size, Net(), trueQgraph)
 Q_DS,  e_DS  = DS(T, learning_rate, batch_size, Net(), trueQgraph)
 Q_BFF, e_BFF = BFF(T, learning_rate, batch_size, Net(), trueQgraph)
-Q_MC         = MC(reps = 1000)
+Q_3BFF, e_3BFF = nBFF(3, T, learning_rate, batch_size, Net(), true)
+# Q_MC         = MC(reps = 1000)
 
 # Compute the graphs of each of the learned Q functions.
 # The Monte Carlo Q is already given as a graph rather than a function; we are
 # just keeping variable names consistent across methods.
-mc   = Q_MC
+# mc   = Q_MC
 ub   = Q_UB(z).detach()
 ds   = Q_DS(z).detach()
 bff  = Q_BFF(z).detach()
-true = trueQ(z).detach()
+nbff = Q_3BFF(z).detach()
+# true = trueQ(z).detach()
 
-# Graph Q(s, 0) vs. s.
-plt.figure()
-plt.subplot(1,2,1)
-plt.plot(x, true[:, 0], label='true', color='m')
-plt.plot(x, mc[:, 0], label='mc', color='c')
-plt.plot(x, ub[:, 0], label='ub', color='b')
-plt.plot(x, ds[:, 0], label='ds', color='r')
-plt.plot(x, bff[:, 0], label='bff', color='g')
-plt.title('Q, action 1')
-plt.legend()
+# # Graph Q(s, 0) vs. s.
+# plt.figure()
+# plt.subplot(1,2,1)
+# plt.plot(x, true[:, 0], label='true', color='m')
+# plt.plot(x, mc[:, 0], label='mc', color='c')
+# plt.plot(x, ub[:, 0], label='ub', color='b')
+# plt.plot(x, ds[:, 0], label='ds', color='r')
+# plt.plot(x, bff[:, 0], label='bff', color='g')
+# plt.title('Q, action 1')
+# plt.legend()
 
-# Graph Q(s, 1) vs. s.
-plt.subplot(1,2,2)
-plt.plot(x, true[:, 1], label='true', color='m')
-plt.plot(x, mc[:, 1], label='mc', color='c')
-plt.plot(x, ub[:, 1], label='ub', color='b')
-plt.plot(x, ds[:, 1], label='ds', color='r')
-plt.plot(x, bff[:, 1], label='bff', color='g')
-plt.title('Q, action 2')
-plt.legend()
-plt.savefig('plots/nn_q_mc_eval.png')
+# # Graph Q(s, 1) vs. s.
+# plt.subplot(1,2,2)
+# plt.plot(x, true[:, 1], label='true', color='m')
+# plt.plot(x, mc[:, 1], label='mc', color='c')
+# plt.plot(x, ub[:, 1], label='ub', color='b')
+# plt.plot(x, ds[:, 1], label='ds', color='r')
+# plt.plot(x, bff[:, 1], label='bff', color='g')
+# plt.title('Q, action 2')
+# plt.legend()
+# plt.savefig('plots/nn_q_mc_eval.png')
 
 
 # Plots without MC
@@ -445,6 +534,7 @@ plt.plot(x, true[:, 0], label='true', color='m')
 plt.plot(x, ub[:, 0], label='ub', color='b')
 plt.plot(x, ds[:, 0], label='ds', color='r')
 plt.plot(x, bff[:, 0], label='bff', color='g')
+plt.plot(x, nbff[:, 0], label='3bff', color='c')
 plt.title('Q, action 1')
 plt.legend()
 
@@ -453,66 +543,79 @@ plt.plot(x, true[:, 1], label='true', color='m')
 plt.plot(x, ub[:, 1], label='ub', color='b')
 plt.plot(x, ds[:, 1], label='ds', color='r')
 plt.plot(x, bff[:, 1], label='bff', color='g')
+plt.plot(x, nbff[:, 1], label='3bff', color='c')
 plt.title('Q, action 2')
 plt.legend()
-plt.savefig('plots/nn_q_eval.png')
+# plt.savefig('plots/nn_q_eval.png')
 
 
 # Compute relative errors for each method.
 rel_e_UB  = [err / e_UB[0]  for err in e_UB]
 rel_e_DS  = [err / e_DS[0]  for err in e_DS]
 rel_e_BFF = [err / e_BFF[0] for err in e_BFF]
+rel_e_3BFF = [err / e_3BFF[0] for err in e_3BFF]
 
 # Compute log relative errors for each method.
 log_e_UB  = [np.log10(err) for err in rel_e_UB]
 log_e_DS  = [np.log10(err) for err in rel_e_DS]
 log_e_BFF = [np.log10(err) for err in rel_e_BFF]
+log_e_3BFF = [np.log10(err) for err in rel_e_3BFF]
 
 # Plot log relative error for each method.
 plt.figure()
 plt.plot(log_e_UB,  label='ub',  color='b')
 plt.plot(log_e_DS,  label='ds',  color='r')
 plt.plot(log_e_BFF, label='bff', color='g')
+plt.plot(log_e_3BFF, label='3bff', color='c')
 plt.title('Relative error decay, log scale')
 plt.legend()
-plt.savefig('plots/nn_error_eval.png')
+# plt.savefig('plots/nn_error_eval.png')
 
 
 # Save Q data to csv files for easy re-plotting.
-with open('csvs/nn_eval/q_mc.csv', 'w', newline='') as csvfile:
-    writer = csv.writer(csvfile)
-    for row in mc:
-        writer.writerow(row)
+# with open('csvs/nn_eval/q_mc.csv', 'w', newline='') as csvfile:
+#     writer = csv.writer(csvfile)
+#     for row in mc:
+#         writer.writerow(row)
 
-with open('csvs/nn_eval/q_ub.csv', 'w', newline='') as csvfile:
+with open(f'csvs/nn_eval/q_ub_{seed}.csv', 'w', newline='') as csvfile:
     writer = csv.writer(csvfile)
     for row in ub.numpy():
         writer.writerow(row)
 
-with open('csvs/nn_eval/q_ds.csv', 'w', newline='') as csvfile:
+with open(f'csvs/nn_eval/q_ds_{seed}.csv', 'w', newline='') as csvfile:
     writer = csv.writer(csvfile)
     for row in ds.numpy():
         writer.writerow(row)
 
-with open('csvs/nn_eval/q_bff.csv', 'w', newline='') as csvfile:
+with open(f'csvs/nn_eval/q_bff_{seed}.csv', 'w', newline='') as csvfile:
     writer = csv.writer(csvfile)
     for row in bff.numpy():
         writer.writerow(row)
 
-with open('csvs/nn_eval/q_true.csv', 'w', newline='') as csvfile:
+with open(f'csvs/nn_eval/q_3bff_{seed}.csv', 'w', newline='') as csvfile:
     writer = csv.writer(csvfile)
-    for row in true.numpy():
+    for row in nbff.numpy():
         writer.writerow(row)
 
+# with open('csvs/nn_eval/q_true.csv', 'w', newline='') as csvfile:
+#     writer = csv.writer(csvfile)
+#     for row in true.numpy():
+#         writer.writerow(row)
+
 # Save error data to csv files for easy re-plotting.
-with open('csvs/nn_eval/error_ub.csv', 'w', newline='') as csvfile:
+with open(f'csvs/nn_eval/error_ub_{seed}.csv', 'w', newline='') as csvfile:
     writer = csv.writer(csvfile)
     writer.writerow(log_e_UB)
 
-with open('csvs/nn_eval/error_ds.csv', 'w', newline='') as csvfile:
+with open(f'csvs/nn_eval/error_ds_{seed}.csv', 'w', newline='') as csvfile:
     writer = csv.writer(csvfile)
     writer.writerow(log_e_DS)
 
-with open('csvs/nn_eval/error_bff.csv', 'w', newline='') as csvfile:
+with open(f'csvs/nn_eval/error_bff_{seed}.csv', 'w', newline='') as csvfile:
     writer = csv.writer(csvfile)
     writer.writerow(log_e_BFF)
+
+with open(f'csvs/nn_eval/error_3bff_{seed}.csv', 'w', newline='') as csvfile:
+    writer = csv.writer(csvfile)
+    writer.writerow(log_e_3BFF)
