@@ -267,6 +267,94 @@ def nBFF(n, T, trueQ = None, Q_init = np.zeros((N, 2)), batch_size = 50, lr = 0.
     return Q, errors
 
 
+def compute_y_step(cur_s, cur_a, nxt_s, Q, y):
+    y_grad = np.zeros((N, 2))
+    
+    j = reward(nxt_s) + g * max(Q[nxt_s, :]) - Q[cur_s, cur_a]
+    
+    y_grad[cur_s, cur_a] += j - y[cur_s, cur_a]
+    
+    return y_grad
+
+
+def compute_batch_y_step(batch, Q, y):
+    y_grad = np.zeros((N, 2))
+    
+    for experience in batch:
+        cur_s = experience[0]
+        cur_a = experience[1]
+        nxt_s = experience[2]
+        
+        y_grad += compute_y_step(cur_s, cur_a, nxt_s, Q, y)
+    
+    return y_grad / len(batch)
+
+
+def compute_Q_step(cur_s, cur_a, nxt_s, Q, y):
+    Q_grad = np.zeros((N, 2))
+    
+    Q_grad[cur_s, cur_a] -= 1
+    
+    nxt_a = np.argmax(Q[nxt_s, :])
+    Q_grad[nxt_s, nxt_a] += g
+    
+    Q_grad *= y[cur_s, cur_a]
+    return Q_grad
+
+
+def compute_batch_Q_step(batch, Q, y):
+    Q_grad = np.zeros((N, 2))
+    
+    for experience in batch:
+        cur_s = experience[0]
+        cur_a = experience[1]
+        nxt_s = experience[2]
+        
+        Q_grad += compute_Q_step(cur_s, cur_a, nxt_s, Q, y)
+    
+    return Q_grad / len(batch)
+
+
+def PD(T, trueQ = None, Q_init = np.zeros((N, 2)), y_init = np.zeros((N, 2)), batch_size = 50, Q_lr = 0.5, y_lr = 0.5):
+    """
+    Tabular PD method.
+    Update:
+        y_{k+1} = y_k + \beta(j(s_m, a_m) \grad_y y_k(s_m, a_m) - y_k(s_m, a_m) \grad_y y_k(s_m, a_m))
+        Q_{k+1} = Q_k - \eta(\grad_Q \delta_k(s_m, a_m) y_{k+1}(s_m, a_m))
+    """
+    start = time.time()
+    
+    errors  = np.zeros(int(T / batch_size))
+    
+    Q = Q_init.copy()
+    y = y_init.copy()
+
+    print('Starting PD...')
+    
+    nxt_s = np.random.randint(0, N)
+    
+    for k in range(int(T / batch_size)):
+        if k % 100 == 0 and k > 0:
+            print(f'ETA: {round(((time.time() - start) * (int(T / batch_size) - k) / k) / 60, 2)} min')
+        
+        # Generate a new batch from the trajectory.
+        batch = [None for _ in range(batch_size)]
+        for i in range(batch_size):
+            cur_s = nxt_s
+            cur_a = policy(cur_s)
+            
+            nxt_s = transition(cur_s, cur_a)
+            batch[i] = (cur_s, cur_a, nxt_s)
+        
+        y += y_lr * compute_batch_y_step(batch, Q, y)
+        Q -= Q_lr * compute_batch_Q_step(batch, Q, y)
+        
+        if trueQ is not None:
+            errors[k] = np.linalg.norm(Q.flatten() - trueQ.flatten())
+
+    return Q, errors
+
+
 def monte_carlo(s, a, trueQ, tol = 0.01, reps = 10):
     """
     Computes a Monte Carlo estimate for the Q function based on the fixed policy pi.
@@ -313,8 +401,8 @@ def MC(trueQ, tol = 0.001, reps = 10000):
 ###############################################################################
 # Run experiment
 ###############################################################################
-# seed = 0
-seed = int(sys.argv[1])
+seed = 1
+# seed = int(sys.argv[1])
 np.random.seed(seed)
 
 T          = 50000000
@@ -337,10 +425,11 @@ with open(path + 'q_true.csv', newline='') as csvfile:
 #     for row in trueQ:
 #         writer.writerow(row)
 
-Q_UB, err_UB = UB(T, trueQ = true, batch_size = batch_size, lr = lr)
-Q_DS, err_DS = DS(T, trueQ = true, batch_size = batch_size, lr = lr)
-Q_BFF, err_BFF = nBFF(1, T, trueQ = true, batch_size = batch_size, lr = lr)
-Q_5BFF, err_5BFF = nBFF(5, T, trueQ = true, batch_size = batch_size, lr = lr)
+# Q_UB, err_UB = UB(T, trueQ = true, batch_size = batch_size, lr = lr)
+# Q_DS, err_DS = DS(T, trueQ = true, batch_size = batch_size, lr = lr)
+# Q_BFF, err_BFF = nBFF(1, T, trueQ = true, batch_size = batch_size, lr = lr)
+# Q_5BFF, err_5BFF = nBFF(5, T, trueQ = true, batch_size = batch_size, lr = lr)
+Q_PD, err_PD = PD(T, trueQ = true, batch_size = batch_size, Q_lr = lr, y_lr = lr)
 # Q = MC(trueQ)
 # with open('csvs/tab_ctrl/q_mc.csv', 'w', newline='') as csvfile:
 #     writer = csv.writer(csvfile)
@@ -349,24 +438,27 @@ Q_5BFF, err_5BFF = nBFF(5, T, trueQ = true, batch_size = batch_size, lr = lr)
 
 
 # Compute relative errors for each method.
-rel_err_UB = [e / err_UB[0] for e in err_UB]
-rel_err_DS = [e / err_DS[0] for e in err_DS]
-rel_err_BFF = [e / err_BFF[0] for e in err_BFF]
-rel_err_5BFF = [e / err_5BFF[0] for e in err_5BFF]
+# rel_err_UB = [e / err_UB[0] for e in err_UB]
+# rel_err_DS = [e / err_DS[0] for e in err_DS]
+# rel_err_BFF = [e / err_BFF[0] for e in err_BFF]
+# rel_err_5BFF = [e / err_5BFF[0] for e in err_5BFF]
+rel_err_PD = [e / err_PD[0] for e in err_PD]
 
 # Compute log relative errors for each method.
-log_err_UB = [np.log10(e) for e in rel_err_UB]
-log_err_DS = [np.log10(e) for e in rel_err_DS]
-log_err_BFF = [np.log10(e) for e in rel_err_BFF]
-log_err_5BFF = [np.log10(e) for e in rel_err_5BFF]
+# log_err_UB = [np.log10(e) for e in rel_err_UB]
+# log_err_DS = [np.log10(e) for e in rel_err_DS]
+# log_err_BFF = [np.log10(e) for e in rel_err_BFF]
+# log_err_5BFF = [np.log10(e) for e in rel_err_5BFF]
+log_err_PD = [np.log10(e) for e in rel_err_PD]
 
 # Plot log relative error for each method.
 plt.figure()
 plt.subplot(1,3,1)
-plt.plot(log_err_UB, label='ub', color='b')
-plt.plot(log_err_DS, label='ds', color='r')
-plt.plot(log_err_BFF, label='1bff', color='g')
-plt.plot(log_err_5BFF, label='5bff', color='c')
+# plt.plot(log_err_UB, label='ub', color='b')
+# plt.plot(log_err_DS, label='ds', color='r')
+# plt.plot(log_err_BFF, label='1bff', color='g')
+# plt.plot(log_err_5BFF, label='5bff', color='c')
+plt.plot(log_err_PD, label='pd', color='c')
 plt.title('Relative error decay, log scale')
 plt.legend()
 
@@ -374,57 +466,68 @@ x = range(N)
 # Graph Q(s, 0) vs. s.
 plt.subplot(1,3,2)
 plt.plot(x, true[:, 0], label='true', color='m')
-plt.plot(Q_UB[:, 0], label='ub', color='b')
-plt.plot(Q_DS[:, 0], label='ds', color='r')
-plt.plot(Q_BFF[:, 0], label='1bff', color='g')
-plt.plot(Q_5BFF[:, 0], label='5bff', color='c')
+# plt.plot(Q_UB[:, 0], label='ub', color='b')
+# plt.plot(Q_DS[:, 0], label='ds', color='r')
+# plt.plot(Q_BFF[:, 0], label='1bff', color='g')
+# plt.plot(Q_5BFF[:, 0], label='5bff', color='c')
+plt.plot(x, Q_PD[:, 0], label='pd', color='c')
 plt.title('Q, action 1')
 plt.legend()
 
 # Graph Q(s, 1) vs. s.
 plt.subplot(1,3,3)
-plt.plot(x, true[:, 0], label='true', color='m')
-plt.plot(Q_UB[:, 1], label='ub', color='b')
-plt.plot(Q_DS[:, 1], label='ds', color='r')
-plt.plot(Q_BFF[:, 1], label='1bff', color='g')
-plt.plot(Q_5BFF[:, 1], label='5bff', color='c')
+plt.plot(x, true[:, 1], label='true', color='m')
+# plt.plot(Q_UB[:, 1], label='ub', color='b')
+# plt.plot(Q_DS[:, 1], label='ds', color='r')
+# plt.plot(Q_BFF[:, 1], label='1bff', color='g')
+# plt.plot(Q_5BFF[:, 1], label='5bff', color='c')
+plt.plot(x, Q_PD[:, 1], label='pd', color='c')
 plt.title('Q, action 2')
 plt.legend()
 # plt.savefig(f'plots/tab_ctrl/{method}.png')
 
 
-with open(f'csvs/tab_ctrl/q_UB_{seed}.csv', 'w', newline='') as csvfile:
+# with open(f'csvs/tab_ctrl/q_UB_{seed}.csv', 'w', newline='') as csvfile:
+#     writer = csv.writer(csvfile)
+#     for row in Q_UB:
+#         writer.writerow(row)
+
+# with open(f'csvs/tab_ctrl/q_DS_{seed}.csv', 'w', newline='') as csvfile:
+#     writer = csv.writer(csvfile)
+#     for row in Q_DS:
+#         writer.writerow(row)
+
+# with open(f'csvs/tab_ctrl/q_BFF_{seed}.csv', 'w', newline='') as csvfile:
+#     writer = csv.writer(csvfile)
+#     for row in Q_BFF:
+#         writer.writerow(row)
+
+# with open(f'csvs/tab_ctrl/q_5BFF_{seed}.csv', 'w', newline='') as csvfile:
+#     writer = csv.writer(csvfile)
+#     for row in Q_5BFF:
+#         writer.writerow(row)
+
+with open(f'csvs/tab_ctrl/q_pd_{seed}.csv', 'w', newline='') as csvfile:
     writer = csv.writer(csvfile)
-    for row in Q_UB:
+    for row in Q_PD:
         writer.writerow(row)
 
-with open(f'csvs/tab_ctrl/q_DS_{seed}.csv', 'w', newline='') as csvfile:
-    writer = csv.writer(csvfile)
-    for row in Q_DS:
-        writer.writerow(row)
+# with open(f'csvs/tab_ctrl/error_UB_{seed}.csv', 'w', newline='') as csvfile:
+#     writer = csv.writer(csvfile)
+#     writer.writerow(log_err_UB)
 
-with open(f'csvs/tab_ctrl/q_BFF_{seed}.csv', 'w', newline='') as csvfile:
-    writer = csv.writer(csvfile)
-    for row in Q_BFF:
-        writer.writerow(row)
+# with open(f'csvs/tab_ctrl/error_DS_{seed}.csv', 'w', newline='') as csvfile:
+#     writer = csv.writer(csvfile)
+#     writer.writerow(log_err_DS)
 
-with open(f'csvs/tab_ctrl/q_5BFF_{seed}.csv', 'w', newline='') as csvfile:
-    writer = csv.writer(csvfile)
-    for row in Q_5BFF:
-        writer.writerow(row)
+# with open(f'csvs/tab_ctrl/error_BFF_{seed}.csv', 'w', newline='') as csvfile:
+#     writer = csv.writer(csvfile)
+#     writer.writerow(log_err_BFF)
 
-with open(f'csvs/tab_ctrl/error_UB_{seed}.csv', 'w', newline='') as csvfile:
-    writer = csv.writer(csvfile)
-    writer.writerow(log_err_UB)
+# with open(f'csvs/tab_ctrl/error_5BFF_{seed}.csv', 'w', newline='') as csvfile:
+#     writer = csv.writer(csvfile)
+#     writer.writerow(log_err_5BFF)
 
-with open(f'csvs/tab_ctrl/error_DS_{seed}.csv', 'w', newline='') as csvfile:
+with open(f'csvs/tab_ctrl/error_pd_{seed}.csv', 'w', newline='') as csvfile:
     writer = csv.writer(csvfile)
-    writer.writerow(log_err_DS)
-
-with open(f'csvs/tab_ctrl/error_BFF_{seed}.csv', 'w', newline='') as csvfile:
-    writer = csv.writer(csvfile)
-    writer.writerow(log_err_BFF)
-
-with open(f'csvs/tab_ctrl/error_5BFF_{seed}.csv', 'w', newline='') as csvfile:
-    writer = csv.writer(csvfile)
-    writer.writerow(log_err_5BFF)
+    writer.writerow(log_err_PD)

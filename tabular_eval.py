@@ -351,6 +351,96 @@ def nBFF(n, T, trueQ = None, Q_init = np.zeros((N, 2)), batch_size = 50, lr = 0.
     return Q, errors
 
 
+def compute_y_step(cur_s, cur_a, nxt_s, Q, y):
+    y_grad = np.zeros((N, 2))
+    
+    pi_nxt = policy_vec(nxt_s)
+    
+    j = reward(nxt_s) + g * np.dot(Q[nxt_s, :], pi_nxt) - Q[cur_s, cur_a]
+    
+    y_grad[cur_s, cur_a] += j - y[cur_s, cur_a]
+    
+    return y_grad
+
+
+def compute_batch_y_step(batch, Q, y):
+    y_grad = np.zeros((N, 2))
+    
+    for experience in batch:
+        cur_s = experience[0]
+        cur_a = experience[1]
+        nxt_s = experience[2]
+        
+        y_grad += compute_y_step(cur_s, cur_a, nxt_s, Q, y)
+    
+    return y_grad / len(batch)
+
+
+def compute_Q_step(cur_s, cur_a, nxt_s, Q, y):
+    Q_grad = np.zeros((N, 2))
+    
+    Q_grad[cur_s, cur_a] -= 1
+    pi_nxt = policy_vec(nxt_s)
+    for a in range(2):
+        Q_grad[nxt_s, a] += g * pi_nxt[a]
+    
+    Q_grad *= y[cur_s, cur_a]
+    return Q_grad
+
+
+def compute_batch_Q_step(batch, Q, y):
+    Q_grad = np.zeros((N, 2))
+    
+    for experience in batch:
+        cur_s = experience[0]
+        cur_a = experience[1]
+        nxt_s = experience[2]
+        
+        Q_grad += compute_Q_step(cur_s, cur_a, nxt_s, Q, y)
+    
+    return Q_grad / len(batch)
+
+
+def PD(T, trueQ = None, Q_init = np.zeros((N, 2)), y_init = np.zeros((N, 2)), batch_size = 50, Q_lr = lr, y_lr = lr):
+    """
+    Tabular PD method.
+    Update:
+        y_{k+1} = y_k + \beta(j(s_m, a_m) \grad_y y_k(s_m, a_m) - y_k(s_m, a_m) \grad_y y_k(s_m, a_m))
+        Q_{k+1} = Q_k - \eta(\grad_Q \delta_k(s_m, a_m) y_{k+1}(s_m, a_m))
+    """
+    start = time.time()
+    
+    errors  = np.zeros(int(T / batch_size))
+    
+    Q = Q_init.copy()
+    y = y_init.copy()
+
+    print('Starting PD...')
+    
+    nxt_s = np.random.randint(0, N)
+    
+    for k in range(int(T / batch_size)):
+        if k % 100 == 0 and k > 0:
+            print(f'ETA: {round(((time.time() - start) * (int(T / batch_size) - k) / k) / 60, 2)} min')
+        
+        # Generate a new batch from the trajectory.
+        batch = [None for _ in range(batch_size)]
+        for i in range(batch_size):
+            cur_s = nxt_s
+            cur_a = policy(cur_s)
+            
+            nxt_s = transition(cur_s, cur_a)
+            batch[i] = (cur_s, cur_a, nxt_s)
+        
+        y += y_lr * compute_batch_y_step(batch, Q, y)
+        Q -= Q_lr * compute_batch_Q_step(batch, Q, y)
+        
+        if trueQ is not None:
+            errors[k] = np.linalg.norm(Q.flatten() - trueQ.flatten())
+
+    return Q, errors
+
+
 def monte_carlo(s, a, tol = 0.001, reps = 1000):
     """
     Computes a Monte Carlo estimate for the Q function based on the fixed policy pi.
@@ -415,8 +505,8 @@ def mc_P(reps = 100000):
 ###############################################################################
 # Run experiment
 ###############################################################################
-# seed = 0
-seed = int(sys.argv[1])
+seed = 4
+# seed = int(sys.argv[1])
 np.random.seed(seed)
 # Compute the transition matrix.
 # I called it bigP since this is the transition matrix for (s, a) pairs rather
@@ -451,33 +541,37 @@ with open('csvs/tab_eval/q_true.csv', newline='') as csvfile:
 # Q_DS, errors_DS, bellman_DS    = DS(T, trueQ = Q_bellman, Q_init = np.zeros((N, 2)), batch_size = 50, P = bigP, r = r)
 # Q_BFF, errors_BFF, bellman_BFF = BFF(T, trueQ = Q_bellman, Q_init = np.zeros((N, 2)), batch_size = 50, P = bigP, r = r)
 
-Q_UB, errors_UB, bellman_UB    = UB(T, trueQ = Q_actual, Q_init = np.zeros((N, 2)), batch_size = 50, P = None, r = None)
-Q_DS, errors_DS, bellman_DS    = DS(T, trueQ = Q_actual, Q_init = np.zeros((N, 2)), batch_size = 50, P = None, r = None)
-Q_BFF, errors_BFF, bellman_BFF = BFF(T, trueQ = Q_actual, Q_init = np.zeros((N, 2)), batch_size = 50, P = None, r = None)
-Q_nBFF, errors_nBFF = nBFF(5, T, trueQ = Q_actual, Q_init = np.zeros((N, 2)), batch_size = 50, lr = lr)
+# Q_UB, errors_UB, bellman_UB    = UB(T, trueQ = Q_actual, Q_init = np.zeros((N, 2)), batch_size = 50, P = None, r = None)
+# Q_DS, errors_DS, bellman_DS    = DS(T, trueQ = Q_actual, Q_init = np.zeros((N, 2)), batch_size = 50, P = None, r = None)
+# Q_BFF, errors_BFF, bellman_BFF = BFF(T, trueQ = Q_actual, Q_init = np.zeros((N, 2)), batch_size = 50, P = None, r = None)
+# Q_nBFF, errors_nBFF = nBFF(5, T, trueQ = Q_actual, Q_init = np.zeros((N, 2)), batch_size = 50, lr = lr)
+Q_PD, errors_PD = PD(T, trueQ = Q_actual)
 
 # Compute the relative L2 errors of each method.
 initial_error  = np.linalg.norm(np.zeros(N * 2) - Q_actual.flatten())
-rel_errors_UB  = [err / initial_error for err in errors_UB]
-rel_errors_DS  = [err / initial_error for err in errors_DS]
-rel_errors_BFF = [err / initial_error for err in errors_BFF]
-rel_errors_nBFF = [err / initial_error for err in errors_nBFF]
+# rel_errors_UB  = [err / initial_error for err in errors_UB]
+# rel_errors_DS  = [err / initial_error for err in errors_DS]
+# rel_errors_BFF = [err / initial_error for err in errors_BFF]
+# rel_errors_nBFF = [err / initial_error for err in errors_nBFF]
+rel_errors_PD = [err / initial_error for err in errors_PD]
 
 # Compute log relative L2 errors of each method.
-log_errors_UB = [np.log10(err) for err in rel_errors_UB]
-log_errors_DS = [np.log10(err) for err in rel_errors_DS]
-log_errors_BFF = [np.log10(err) for err in rel_errors_BFF]
-log_errors_nBFF = [np.log10(err) for err in rel_errors_nBFF]
+# log_errors_UB = [np.log10(err) for err in rel_errors_UB]
+# log_errors_DS = [np.log10(err) for err in rel_errors_DS]
+# log_errors_BFF = [np.log10(err) for err in rel_errors_BFF]
+# log_errors_nBFF = [np.log10(err) for err in rel_errors_nBFF]
+log_errors_PD = [np.log10(err) for err in rel_errors_PD]
 
 # Plot log relative L2 errors.
 plt.figure()
-plt.plot(log_errors_UB, label='ub', color='b')
-plt.plot(log_errors_DS, label='ds', color='r')
-plt.plot(log_errors_BFF, label='1bff', color='g')
-plt.plot(log_errors_nBFF, label='5bff', color='c')
+# plt.plot(log_errors_UB, label='ub', color='b')
+# plt.plot(log_errors_DS, label='ds', color='r')
+# plt.plot(log_errors_BFF, label='1bff', color='g')
+# plt.plot(log_errors_nBFF, label='5bff', color='c')
+plt.plot(log_errors_PD, label='pd', color='m')
 plt.title('Relative error decay, log scale')
 plt.legend()
-plt.savefig('plots/tabular_error.png')
+# plt.savefig('plots/tabular_error.png')
 
 # Plot Bellman residuals.
 # plt.figure()
@@ -494,63 +588,75 @@ plt.figure()
 plt.subplot(1, 2, 1)
 #plt.plot(range(N), Q_MC[:, 0], label='mc', color='m')
 plt.plot(Q_actual[:, 0], label='true', color='c')
-plt.plot(Q_UB[:, 0], label='ub', color='b')
-plt.plot(Q_DS[:, 0], label='ds', color='r')
-plt.plot(Q_BFF[:, 0], label='1bff', color='g')
-plt.plot(Q_nBFF[:, 0], label='5bff', color='c')
+# plt.plot(Q_UB[:, 0], label='ub', color='b')
+# plt.plot(Q_DS[:, 0], label='ds', color='r')
+# plt.plot(Q_BFF[:, 0], label='1bff', color='g')
+# plt.plot(Q_nBFF[:, 0], label='5bff', color='c')
+plt.plot(Q_PD[:, 0], label='pd', color='m')
 plt.title('Q, action 1')
 plt.legend()
 
 plt.subplot(1, 2, 2)
 #plt.plot(range(N), Q_MC[:, 1], label='mc', color='m')
 plt.plot(Q_actual[:, 1], label='true', color='c')
-plt.plot(Q_UB[:, 1], label='ub', color='b')
-plt.plot(Q_DS[:, 1], label='ds', color='r')
-plt.plot(Q_BFF[:, 1], label='1bff', color='g')
-plt.plot(Q_nBFF[:, 1], label='5bff', color='c')
+# plt.plot(Q_UB[:, 1], label='ub', color='b')
+# plt.plot(Q_DS[:, 1], label='ds', color='r')
+# plt.plot(Q_BFF[:, 1], label='1bff', color='g')
+# plt.plot(Q_nBFF[:, 1], label='5bff', color='c')
+plt.plot(Q_PD[:, 1], label='pd', color='m')
 plt.title('Q, action 2')
 plt.legend()
 # plt.savefig('plots/tabular_q.png')
 
 
-# Save Q data to csv files for easy re-plotting.
-with open(f'csvs/tab_eval/q_ub_{seed}.csv', 'w', newline='') as csvfile:
-    writer = csv.writer(csvfile)
-    for row in Q_UB:
-        writer.writerow(row)
-
-with open(f'csvs/tab_eval/q_ds_{seed}.csv', 'w', newline='') as csvfile:
-    writer = csv.writer(csvfile)
-    for row in Q_DS:
-        writer.writerow(row)
-
-with open(f'csvs/tab_eval/q_bff_{seed}.csv', 'w', newline='') as csvfile:
-    writer = csv.writer(csvfile)
-    for row in Q_BFF:
-        writer.writerow(row)
-
-with open(f'csvs/tab_eval/q_5bff_{seed}.csv', 'w', newline='') as csvfile:
-    writer = csv.writer(csvfile)
-    for row in Q_nBFF:
-        writer.writerow(row)
-# with open('csvs/tab_eval/q_true.csv', 'w', newline='') as csvfile:
+# # Save Q data to csv files for easy re-plotting.
+# with open(f'csvs/tab_eval/q_ub_{seed}.csv', 'w', newline='') as csvfile:
 #     writer = csv.writer(csvfile)
-#     for row in Q_actual:
+#     for row in Q_UB:
 #         writer.writerow(row)
 
-# Save error data to csv files for easy re-plotting.
-with open(f'csvs/tab_eval/error_ub_{seed}.csv', 'w', newline='') as csvfile:
-    writer = csv.writer(csvfile)
-    writer.writerow(log_errors_UB)
+# with open(f'csvs/tab_eval/q_ds_{seed}.csv', 'w', newline='') as csvfile:
+#     writer = csv.writer(csvfile)
+#     for row in Q_DS:
+#         writer.writerow(row)
 
-with open(f'csvs/tab_eval/error_ds_{seed}.csv', 'w', newline='') as csvfile:
-    writer = csv.writer(csvfile)
-    writer.writerow(log_errors_DS)
+# with open(f'csvs/tab_eval/q_bff_{seed}.csv', 'w', newline='') as csvfile:
+#     writer = csv.writer(csvfile)
+#     for row in Q_BFF:
+#         writer.writerow(row)
 
-with open(f'csvs/tab_eval/error_bff_{seed}.csv', 'w', newline='') as csvfile:
-    writer = csv.writer(csvfile)
-    writer.writerow(log_errors_BFF)
+# with open(f'csvs/tab_eval/q_5bff_{seed}.csv', 'w', newline='') as csvfile:
+#     writer = csv.writer(csvfile)
+#     for row in Q_nBFF:
+#         writer.writerow(row)
 
-with open(f'csvs/tab_eval/error_5bff_{seed}.csv', 'w', newline='') as csvfile:
+with open(f'csvs/tab_eval/q_pd_{seed}.csv', 'w', newline='') as csvfile:
     writer = csv.writer(csvfile)
-    writer.writerow(log_errors_nBFF)
+    for row in Q_PD:
+        writer.writerow(row)
+
+# # with open('csvs/tab_eval/q_true.csv', 'w', newline='') as csvfile:
+# #     writer = csv.writer(csvfile)
+# #     for row in Q_actual:
+# #         writer.writerow(row)
+
+# # Save error data to csv files for easy re-plotting.
+# with open(f'csvs/tab_eval/error_ub_{seed}.csv', 'w', newline='') as csvfile:
+#     writer = csv.writer(csvfile)
+#     writer.writerow(log_errors_UB)
+
+# with open(f'csvs/tab_eval/error_ds_{seed}.csv', 'w', newline='') as csvfile:
+#     writer = csv.writer(csvfile)
+#     writer.writerow(log_errors_DS)
+
+# with open(f'csvs/tab_eval/error_bff_{seed}.csv', 'w', newline='') as csvfile:
+#     writer = csv.writer(csvfile)
+#     writer.writerow(log_errors_BFF)
+
+# with open(f'csvs/tab_eval/error_5bff_{seed}.csv', 'w', newline='') as csvfile:
+#     writer = csv.writer(csvfile)
+#     writer.writerow(log_errors_nBFF)
+
+with open(f'csvs/tab_eval/error_pd_{seed}.csv', 'w', newline='') as csvfile:
+    writer = csv.writer(csvfile)
+    writer.writerow(log_errors_PD)
